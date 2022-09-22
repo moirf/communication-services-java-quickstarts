@@ -1,20 +1,29 @@
 package com.communication.recognizedtmf;
 
 import com.azure.communication.callingserver.CallConnection;
-import com.azure.communication.callingserver.CallingServerClient;
-import com.azure.communication.callingserver.CallingServerClientBuilder;
+import com.azure.communication.callingserver.implementation.models.RecognizeCompleted;
+import com.azure.communication.callingserver.CallAutomationClientBuilder;
+import com.azure.communication.callingserver.CallAutomationAsyncClient;
+import com.azure.communication.callingserver.CallAutomationClient;
 import com.azure.communication.callingserver.models.CallConnectionState;
 import com.azure.communication.callingserver.models.CreateCallOptions;
+import com.azure.communication.callingserver.models.CreateCallResult;
 import com.azure.communication.callingserver.models.EventSubscriptionType;
+import com.azure.communication.callingserver.models.FileSource;
 import com.azure.communication.callingserver.models.MediaType;
 import com.azure.communication.callingserver.models.OperationStatus;
 import com.azure.communication.callingserver.models.PlayAudioOptions;
 import com.azure.communication.callingserver.models.PlayAudioResult;
+import com.azure.communication.callingserver.models.PlayOptions;
+import com.azure.communication.callingserver.models.PlaySource;
 import com.azure.communication.callingserver.models.ToneInfo;
 import com.azure.communication.callingserver.models.ToneValue;
+import com.azure.communication.callingserver.models.events.CallConnectedEvent;
 import com.azure.communication.callingserver.models.events.CallConnectionStateChangedEvent;
+import com.azure.communication.callingserver.models.events.CallDisconnectedEvent;
 import com.azure.communication.callingserver.models.events.CallingServerEventType;
 import com.azure.communication.callingserver.models.events.PlayAudioResultEvent;
+import com.azure.communication.callingserver.models.events.PlayCompleted;
 import com.azure.communication.callingserver.models.events.ToneReceivedEvent;
 import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.CommunicationUserIdentifier;
@@ -37,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 public class RecognizeDtmf {
 
     private final CallConfiguration callConfiguration;
-    private final CallingServerClient callingServerClient;
+    private final CallAutomationAsyncClient callingAutomationClient;
     private CallConnection callConnection = null;
     private CancellationTokenSource reportCancellationTokenSource;
     private CancellationToken reportCancellationToken;
@@ -45,16 +54,12 @@ public class RecognizeDtmf {
     private CompletableFuture<Boolean> playAudioCompletedTask;
     private CompletableFuture<Boolean> callTerminatedTask;
     private CompletableFuture<Boolean> toneReceivedCompleteTask;
-    private ToneValue toneInputValue = ToneValue.FLASH;
+    private DtmfTone toneInputValue = ToneValue.FLASH;
 
     public RecognizeDtmf(CallConfiguration callConfiguration) {
         this.callConfiguration = callConfiguration;
-
-        NettyAsyncHttpClientBuilder httpClientBuilder = new NettyAsyncHttpClientBuilder();
-        CallingServerClientBuilder callClientBuilder = new CallingServerClientBuilder().httpClient(httpClientBuilder.build())
-                .connectionString(this.callConfiguration.connectionString);
-
-        this.callingServerClient = callClientBuilder.buildClient();
+        this.callingAutomationClient = new CallAutomationClientBuilder().
+        endpoint(this.callConfiguration.connectionString).buildAsyncClient();
     }
 
     public void report(String targetPhoneNumber) {
@@ -63,7 +68,7 @@ public class RecognizeDtmf {
 
         try {
             createCallAsync(targetPhoneNumber);
-            registerToDtmfResultEvent(callConnection.getCallConnectionId());
+            registerToDtmfResultEvent(callConnection.getCallProperties().getCallConnectionId());
 
             playAudioAsync();
             Boolean playAudioCompleted = playAudioCompletedTask.get();
@@ -92,41 +97,23 @@ public class RecognizeDtmf {
         try {
             // Preparing request data
             CommunicationUserIdentifier source = new CommunicationUserIdentifier(this.callConfiguration.sourceIdentity);
-            PhoneNumberIdentifier target = new PhoneNumberIdentifier(targetPhoneNumber);
-
-            List<MediaType> callModality = new ArrayList<>() {
-                {
-                    add(MediaType.AUDIO);
-                }
+            List<CommunicationIdentifier> targets = new ArrayList<CommunicationIdentifier>() {
+                {add(new PhoneNumberIdentifier(targetPhoneNumber));}
             };
 
-            List<EventSubscriptionType> eventSubscriptionType = new ArrayList<>() {
-                {
-                    add(EventSubscriptionType.PARTICIPANTS_UPDATED);
-                    add(EventSubscriptionType.DTMF_RECEIVED);
-                }
-            };
-
-            CreateCallOptions createCallOption = new CreateCallOptions(this.callConfiguration.appCallbackUrl,
-                    callModality, eventSubscriptionType);
-
-            createCallOption.setAlternateCallerId(new PhoneNumberIdentifier(this.callConfiguration.sourcePhoneNumber));
-
+            CreateCallOptions createCallOption = new CreateCallOptions(source, targets, this.callConfiguration.appCallbackUrl);
+            createCallOption.setSourceCallerId(this.callConfiguration.sourcePhoneNumber);
             Logger.logMessage(Logger.MessageType.INFORMATION,"Performing CreateCall operation");
 
-            List<CommunicationIdentifier> targets = new ArrayList<>() {
-                {
-                    add(target);
-                }
-            };
+            Response<CreateCallResult> response = this.callingAutomationClient.
+            createCallWithResponse(createCallOption).block();
+            CreateCallResult callResult = response.getValue();
+            callConnection = callResult.getCallConnection(); 
 
-            Response<CallConnection> response = this.callingServerClient.createCallConnectionWithResponse(source, targets, createCallOption, null);
-            callConnection = response.getValue(); 
+            Logger.logMessage(Logger.MessageType.INFORMATION, "createCallConnectionWithResponse -- > " + getResponse(response) + ", Call connection ID: " + callResult.getCallConnectionProperties().getCallConnectionId());
+            Logger.logMessage(Logger.MessageType.INFORMATION, "Call initiated with Call Leg id -- >" + callResult.getCallConnectionProperties().getCallConnectionId());
 
-            Logger.logMessage(Logger.MessageType.INFORMATION, "createCallConnectionWithResponse -- > " + getResponse(response) + ", Call connection ID: " + callConnection.getCallConnectionId());
-            Logger.logMessage(Logger.MessageType.INFORMATION, "Call initiated with Call Leg id -- >" + callConnection.getCallConnectionId());
-
-            registerToCallStateChangeEvent(callConnection.getCallConnectionId());
+            registerToCallStateChangeEvent(callResult.getCallConnectionProperties().getCallConnectionId());
             callConnectedTask.get();
 
         } catch (Exception ex) {
@@ -138,32 +125,30 @@ public class RecognizeDtmf {
         callTerminatedTask = new CompletableFuture<>();
         callConnectedTask = new CompletableFuture<>();
         // Set the callback method
-        NotificationCallback callStateChangeNotificaiton = ((callEvent) -> {
-            CallConnectionStateChangedEvent callStateChanged = (CallConnectionStateChangedEvent) callEvent;
+        NotificationCallback callConnectedNotificaiton = ((callEvent) -> {
+            CallConnectedEvent callStateChanged = (CallConnectedEvent) callEvent;
+            Logger.logMessage(Logger.MessageType.INFORMATION, "Call State successfully connected");
+            callConnectedTask.complete(true);
+            EventDispatcher.getInstance().unsubscribe("CallConnected", callLegId);
+        });
 
-            Logger.logMessage(Logger.MessageType.INFORMATION,"Call State changed to -- > " + callStateChanged.getCallConnectionState());
-
-            if (callStateChanged.getCallConnectionState().equals(CallConnectionState.CONNECTED)) {
-                Logger.logMessage(Logger.MessageType.INFORMATION, "Call State successfully connected");
-                callConnectedTask.complete(true);
-            } else if (callStateChanged.getCallConnectionState().equals(CallConnectionState.DISCONNECTED)) {
-                EventDispatcher.getInstance()
-                        .unsubscribe(CallingServerEventType.CALL_CONNECTION_STATE_CHANGED_EVENT.toString(), callLegId);
-                reportCancellationTokenSource.cancel();
-                callTerminatedTask.complete(true);
-            }
+        NotificationCallback callDisconnectedNotificaiton = ((callEvent) -> {
+            CallDisconnectedEvent callStateChanged = (CallDisconnectedEvent) callEvent;
+            EventDispatcher.getInstance().unsubscribe("CallDisconnected", callLegId);
+            reportCancellationTokenSource.cancel();
+            callTerminatedTask.complete(true);
         });
 
         // Subscribe to the event
-        EventDispatcher.getInstance().subscribe(CallingServerEventType.CALL_CONNECTION_STATE_CHANGED_EVENT.toString(),
-                callLegId, callStateChangeNotificaiton);
+        EventDispatcher.getInstance().subscribe("CallConnected", callLegId, callConnectedNotificaiton);
+        EventDispatcher.getInstance().subscribe("CallDisconnected", callLegId, callDisconnectedNotificaiton);
     }
 
     private void registerToDtmfResultEvent(String callLegId) {
         toneReceivedCompleteTask = new CompletableFuture<>();
 
         NotificationCallback dtmfReceivedEvent = ((callEvent) -> {
-            ToneReceivedEvent toneReceivedEvent = (ToneReceivedEvent) callEvent;
+            RecognizeCompleted toneReceivedEvent = (RecognizeCompleted) callEvent;
             ToneInfo toneInfo = toneReceivedEvent.getToneInfo();
 
             Logger.logMessage(Logger.MessageType.INFORMATION, "Tone received -- > : " + toneInfo.getTone());
@@ -174,12 +159,12 @@ public class RecognizeDtmf {
             } else {
                 toneReceivedCompleteTask.complete(false);
             }
-            EventDispatcher.getInstance().unsubscribe(CallingServerEventType.TONE_RECEIVED_EVENT.toString(), callLegId);
+            EventDispatcher.getInstance().unsubscribe("RecognizeCompleted", callLegId);
             // cancel playing audio
             cancelMediaProcessing();
         });
         // Subscribe to event
-        EventDispatcher.getInstance().subscribe(CallingServerEventType.TONE_RECEIVED_EVENT.toString(), callLegId,
+        EventDispatcher.getInstance().subscribe("RecognizeCompleted", callLegId,
                 dtmfReceivedEvent);
     }
 
@@ -190,8 +175,7 @@ public class RecognizeDtmf {
         }
 
         Logger.logMessage(Logger.MessageType.INFORMATION, "Performing cancel media processing operation to stop playing audio");
-
-        this.callConnection.cancelAllMediaOperations(UUID.randomUUID().toString());
+        this.callConnection.getCallMedia().cancelAllMediaOperations();
     }
 
     private void playAudioAsync() {
@@ -204,27 +188,19 @@ public class RecognizeDtmf {
             // Preparing data for request
             String audioFileUri = this.callConfiguration.audioFileUrl + this.callConfiguration.audioFileName;
             String appCallbackUri = this.callConfiguration.appCallbackUrl;
-            Boolean loop = true;
-            String operationContext = UUID.randomUUID().toString();
-            String audioFileId = UUID.randomUUID().toString();
-            PlayAudioOptions playAudioOptions = new PlayAudioOptions();
+            PlayOptions playAudioOptions = new PlayOptions();
             
-            playAudioOptions.setLoop(loop);
-            playAudioOptions.setAudioFileId(audioFileId);
-            playAudioOptions.setOperationContext(operationContext);
-            playAudioOptions.setCallbackUri(appCallbackUri);
+            playAudioOptions.setLoop(true);
+            playAudioOptions.setOperationContext(UUID.randomUUID().toString());
+
+            PlaySource playSource = new FileSource().setUri(audioFileUri);
 
             Logger.logMessage(Logger.MessageType.INFORMATION, "Performing PlayAudio operation");
-            Response<PlayAudioResult> playAudioResponse = this.callConnection.playAudioWithResponse(audioFileUri, playAudioOptions, null);
-            
-            PlayAudioResult response = playAudioResponse.getValue();
+            Response<Void> playAudioResponse = this.callConnection.getCallMedia().playToAllWithResponse(playSource, playAudioOptions, null);
+            Logger.logMessage(Logger.MessageType.INFORMATION, "playAudioWithResponse -- > " + getResponse(playAudioResponse));
 
-            Logger.logMessage(Logger.MessageType.INFORMATION, "playAudioWithResponse -- > " + getResponse(playAudioResponse) + 
-            ", Id: " + response.getOperationId() + ", OperationContext: " + response.getOperationContext() + ", OperationStatus: " +
-            response.getStatus().toString());
-
-            if (response.getStatus().equals(OperationStatus.RUNNING)) {
-                Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state -- > " + OperationStatus.RUNNING);
+            if (playAudioResponse.getStatusCode() == 202) {
+                Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state running");
 
                 // listen to play audio events
                 registerToPlayAudioResultEvent(response.getOperationContext());
@@ -249,7 +225,7 @@ public class RecognizeDtmf {
             if (playAudioCompletedTask.isCancelled()) {
                 Logger.logMessage(Logger.MessageType.INFORMATION, "Play audio operation cancelled");
             } else {
-                Logger.logMessage(Logger.MessageType.INFORMATION, "Failure occured while playing audio on the call. Exception: " + ex.getMessage());
+                Logger.logMessage(Logger.MessageType.INFORMATION, "Failure occurred while playing audio on the call. Exception: " + ex.getMessage());
             }
         }
     }
@@ -278,28 +254,19 @@ public class RecognizeDtmf {
             }
 
             String audioFileUri = this.callConfiguration.audioFileUrl + audioFileName;
-            String appCallbackUri = this.callConfiguration.appCallbackUrl;
-            Boolean loop = false;
-            String operationContext = UUID.randomUUID().toString();
-            String audioFileId = UUID.randomUUID().toString();
-            PlayAudioOptions playAudioOptions = new PlayAudioOptions();
-            
-            playAudioOptions.setLoop(loop);
-            playAudioOptions.setAudioFileId(audioFileId);
-            playAudioOptions.setOperationContext(operationContext);
-            playAudioOptions.setCallbackUri(appCallbackUri);
+            PlaySource playSource = new FileSource().setUri(audioFileUri);
+            PlayOptions playAudioOptions = new PlayOptions();
+            playAudioOptions.setLoop(false);
+            playAudioOptions.setOperationContext(UUID.randomUUID().toString());
 
             Logger.logMessage(Logger.MessageType.INFORMATION, "Performing PlayAudio operation");
-            Response<PlayAudioResult> playAudioResponse = this.callConnection.playAudioWithResponse(audioFileUri, playAudioOptions, null);
+            Response<Void> playAudioResponse = this.callConnection.getCallMedia().
+            playToAllWithResponse(playSource, playAudioOptions, null);
             
-            PlayAudioResult response = playAudioResponse.getValue();
+            Logger.logMessage(Logger.MessageType.INFORMATION, "playAudioWithResponse -- > " + getResponse(playAudioResponse));
 
-            Logger.logMessage(Logger.MessageType.INFORMATION, "playAudioWithResponse -- > " + getResponse(playAudioResponse) + 
-            ", Id: " + response.getOperationId() + ", OperationContext: " + response.getOperationContext() + ", OperationStatus: " +
-            response.getStatus().toString());
-
-            if (response.getStatus().equals(OperationStatus.RUNNING)) {
-                Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state -- > " + OperationStatus.RUNNING);
+            if (playAudioResponse.getStatusCode() == 202) {
+                Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state is running ");
 
                 // listen to play audio events
                 registerToPlayAudioResultEvent(response.getOperationContext());
@@ -336,28 +303,28 @@ public class RecognizeDtmf {
         }
 
         Logger.logMessage(Logger.MessageType.INFORMATION, "Performing Hangup operation");
-        Response<Void> response = this.callConnection.hangupWithResponse(null);
+        Response<Void> response = this.callConnection.hangUpWithResponse(true, null);
         Logger.logMessage(Logger.MessageType.INFORMATION, "hangupWithResponse -- > " + getResponse(response));
     }
 
     private void registerToPlayAudioResultEvent(String operationContext) {
         playAudioCompletedTask = new CompletableFuture<>();
-        NotificationCallback playPromptResponseNotification = ((callEvent) -> {
-            PlayAudioResultEvent playAudioResultEvent = (PlayAudioResultEvent) callEvent;
-            Logger.logMessage(Logger.MessageType.INFORMATION, "Play audio status -- > " + playAudioResultEvent.getStatus());
+        NotificationCallback playCompletedNotification = ((callEvent) -> {
+            PlayCompleted playAudioResultEvent = (PlayCompleted) callEvent;
+            Logger.logMessage(Logger.MessageType.INFORMATION, "Play audio status completed" );
 
-            if (playAudioResultEvent.getStatus().equals(OperationStatus.COMPLETED)) {
-                EventDispatcher.getInstance().unsubscribe(CallingServerEventType.PLAY_AUDIO_RESULT_EVENT.toString(),
-                        operationContext);
-                playAudioCompletedTask.complete(true);
-            } else if (playAudioResultEvent.getStatus().equals(OperationStatus.FAILED)) {
-                playAudioCompletedTask.complete(false);
-            }
+            EventDispatcher.getInstance().unsubscribe("PlayCompleted", operationContext);
+            playAudioCompletedTask.complete(true);   
+        });
+
+        NotificationCallback playFailedNotification = ((callEvent) -> {
+            PlayCompleted playAudioResultEvent = (PlayCompleted) callEvent;
+            playAudioCompletedTask.complete(false);
         });
 
         // Subscribe to event
-        EventDispatcher.getInstance().subscribe(CallingServerEventType.PLAY_AUDIO_RESULT_EVENT.toString(),
-                operationContext, playPromptResponseNotification);
+        EventDispatcher.getInstance().subscribe("PlayCompleted", operationContext, playCompletedNotification);
+        EventDispatcher.getInstance().subscribe("PlayFailed", operationContext, playFailedNotification);
     }
 
     public String getResponse(Response<?> response)
