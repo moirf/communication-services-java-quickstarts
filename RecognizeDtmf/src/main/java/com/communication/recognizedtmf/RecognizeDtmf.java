@@ -8,23 +8,14 @@ import com.azure.communication.callingserver.CallAutomationClient;
 import com.azure.communication.callingserver.models.CallConnectionState;
 import com.azure.communication.callingserver.models.CreateCallOptions;
 import com.azure.communication.callingserver.models.CreateCallResult;
-import com.azure.communication.callingserver.models.EventSubscriptionType;
+import com.azure.communication.callingserver.models.DtmfConfigurations;
 import com.azure.communication.callingserver.models.FileSource;
-import com.azure.communication.callingserver.models.MediaType;
-import com.azure.communication.callingserver.models.OperationStatus;
-import com.azure.communication.callingserver.models.PlayAudioOptions;
-import com.azure.communication.callingserver.models.PlayAudioResult;
 import com.azure.communication.callingserver.models.PlayOptions;
 import com.azure.communication.callingserver.models.PlaySource;
-import com.azure.communication.callingserver.models.ToneInfo;
-import com.azure.communication.callingserver.models.ToneValue;
+import com.azure.communication.callingserver.models.StopTones;
 import com.azure.communication.callingserver.models.events.CallConnectedEvent;
-import com.azure.communication.callingserver.models.events.CallConnectionStateChangedEvent;
 import com.azure.communication.callingserver.models.events.CallDisconnectedEvent;
-import com.azure.communication.callingserver.models.events.CallingServerEventType;
-import com.azure.communication.callingserver.models.events.PlayAudioResultEvent;
 import com.azure.communication.callingserver.models.events.PlayCompleted;
-import com.azure.communication.callingserver.models.events.ToneReceivedEvent;
 import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.CommunicationUserIdentifier;
 import com.azure.communication.common.PhoneNumberIdentifier;
@@ -54,7 +45,7 @@ public class RecognizeDtmf {
     private CompletableFuture<Boolean> playAudioCompletedTask;
     private CompletableFuture<Boolean> callTerminatedTask;
     private CompletableFuture<Boolean> toneReceivedCompleteTask;
-    private DtmfTone toneInputValue = ToneValue.FLASH;
+    private String toneInputValue = StopTones.ASTERISK.toString();
 
     public RecognizeDtmf(CallConfiguration callConfiguration) {
         this.callConfiguration = callConfiguration;
@@ -148,13 +139,13 @@ public class RecognizeDtmf {
         toneReceivedCompleteTask = new CompletableFuture<>();
 
         NotificationCallback dtmfReceivedEvent = ((callEvent) -> {
-            RecognizeCompleted toneReceivedEvent = (RecognizeCompleted) callEvent;
-            ToneInfo toneInfo = toneReceivedEvent.getToneInfo();
+            RecognizeCompleted toneReceivedEvent ; //(RecognizeCompleted) callEvent
+            List<String> toneInfo = toneReceivedEvent.getCollectTonesResult().getTones();
 
-            Logger.logMessage(Logger.MessageType.INFORMATION, "Tone received -- > : " + toneInfo.getTone());
+            Logger.logMessage(Logger.MessageType.INFORMATION, "Tone received -- > : " + toneInfo);
 
-            if (toneInfo.getTone() != null) {
-                this.toneInputValue = toneInfo.getTone();
+            if (!toneInfo.isEmpty() && toneInfo != null) {
+                this.toneInputValue = toneInfo.get(0);
                 toneReceivedCompleteTask.complete(true);
             } else {
                 toneReceivedCompleteTask.complete(false);
@@ -164,8 +155,7 @@ public class RecognizeDtmf {
             cancelMediaProcessing();
         });
         // Subscribe to event
-        EventDispatcher.getInstance().subscribe("RecognizeCompleted", callLegId,
-                dtmfReceivedEvent);
+        EventDispatcher.getInstance().subscribe("RecognizeCompleted", callLegId, dtmfReceivedEvent);
     }
 
     private void cancelMediaProcessing() {
@@ -203,7 +193,7 @@ public class RecognizeDtmf {
                 Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state running");
 
                 // listen to play audio events
-                registerToPlayAudioResultEvent(response.getOperationContext());
+                registerToPlayAudioResultEvent(playAudioResponse.);
 
                 CompletableFuture<Boolean> maxWait = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -240,15 +230,15 @@ public class RecognizeDtmf {
             // Preparing data for request
             var audioFileName = callConfiguration.InvalidAudioFileName;
 
-            if (toneInputValue == ToneValue.TONE1)
+            if (toneInputValue == StopTones.ONE.toString())
             {
                 audioFileName = callConfiguration.SalesAudioFileName;
             }
-            else if (toneInputValue == ToneValue.TONE2)
+            else if (toneInputValue == StopTones.TWO.toString())
             {
                 audioFileName = callConfiguration.MarketingAudioFileName;
             }
-            else if (toneInputValue == ToneValue.TONE3)
+            else if (toneInputValue == StopTones.THREE.toString())
             {
                 audioFileName = callConfiguration.CustomerCareAudioFileName;
             }
