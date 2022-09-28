@@ -30,11 +30,10 @@ This sample application shows how the Azure Communication Services Server Callin
 
 	- Connection String: Azure Communication Service resource's connection string.
 	- Source Phone: Phone number associated with the Azure Communication Service resource.
-	- DestinationIdentities: Multiple sets of outbound target and Transfer target. These sets are seperated by a semi-colon, and outbound target and Transfer target in a each set are seperated by a coma.
+	- DestinationIdentities: Multiple sets of outbound target and Transfer target. These sets are seperated by a semi-colon.
 
-    	Format: "OutboundTarget1(PhoneNumber),TransferTarget1(PhoneNumber/MRI);OutboundTarget2(PhoneNumber),TransferTarget2(PhoneNumber/MRI);OutboundTarget3(PhoneNumber),TransferTarget3(PhoneNumber/MRI)".
-
-	  	For e.g. "+1425XXXAAAA,8:acs:ab12b0ea-85ea-4f83-b0b6-84d90209c7c4_00000009-bce0-da09-54b7-xxxxxxxxxxxx;+1425XXXBBBB,+1425XXXCCCC"
+    	Format: "OutboundTarget1(PhoneNumber);OutboundTarget2(PhoneNumber);OutboundTarget3(PhoneNumber)".
+	  	For e.g. "+1425XXXAAAA;+1425XXXBBBB;+1425XXXCCCC"
 
 	- NgrokExePath: Folder path where ngrok.exe is insalled/saved.
 	- SecretPlaceholder: Secret/Password that would be part of callback and will be use to validate incoming requests.

@@ -81,10 +81,6 @@ public class App {
         ConfigurationManager configurationManager = ConfigurationManager.getInstance();
         String callplayaudioPairs = configurationManager.getAppSettings("DestinationIdentities");
 
-        Logger.logMessage(Logger.MessageType.INFORMATION, "connectionString= "+callConfiguration.connectionString );
-        Logger.logMessage(Logger.MessageType.INFORMATION, "sourceIdentity= "+callConfiguration.sourceIdentity );
-        Logger.logMessage(Logger.MessageType.INFORMATION, "sourcePhoneNumber= "+callConfiguration.sourcePhoneNumber );
-
         try {
             if (callplayaudioPairs != null && !callplayaudioPairs.isEmpty()) {
                 String[] identities = callplayaudioPairs.split(";");
@@ -92,10 +88,9 @@ public class App {
                 Set<Callable<Boolean>> tasks = new HashSet<>();
 
                 for (String identity : identities) {
-                    String[] pair = identity.split(",");
-                    if(pair.length == 2 && !pair[0].isEmpty() && !pair[1].isEmpty()) {
+                    if(!identity.isEmpty()) {
                         tasks.add(() -> {
-                            new CallPlayTerminate(callConfiguration).report(pair[0].trim());
+                            new CallPlayTerminate(callConfiguration).report(identity.trim());
                             return true;
                         });
                     } else {

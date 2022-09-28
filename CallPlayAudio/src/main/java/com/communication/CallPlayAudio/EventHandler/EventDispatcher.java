@@ -83,13 +83,13 @@ public class EventDispatcher {
             CloudEvent cloudEvent = cloudEvents.get(0);
             BinaryData eventData = cloudEvent.getData();
 
-            if (cloudEvent.getType().equals(CallingServerEventType.CALL_CONNECTION_STATE_CHANGED_EVENT.toString())) {
+            if (cloudEvent.getType().equalsIgnoreCase(CallingServerEventType.CALL_CONNECTION_STATE_CHANGED_EVENT.toString())) {
                 return CallConnectionStateChangedEvent.deserialize(eventData);
-            } else if (cloudEvent.getType().equals(CallingServerEventType.TONE_RECEIVED_EVENT.toString())) {
+            } else if (cloudEvent.getType().equalsIgnoreCase(CallingServerEventType.TONE_RECEIVED_EVENT.toString())) {
                 return ToneReceivedEvent.deserialize(eventData);
-            } else if (cloudEvent.getType().equals(CallingServerEventType.PLAY_AUDIO_RESULT_EVENT.toString())) {
+            } else if (cloudEvent.getType().equalsIgnoreCase(CallingServerEventType.PLAY_AUDIO_RESULT_EVENT.toString())) {
                 return PlayAudioResultEvent.deserialize(eventData);
-            } else if (cloudEvent.getType().equals(CallingServerEventType.ADD_PARTICIPANT_RESULT_EVENT.toString())) {
+            } else if (cloudEvent.getType().equalsIgnoreCase(CallingServerEventType.ADD_PARTICIPANT_RESULT_EVENT.toString())) {
                 return AddParticipantResultEvent.deserialize(eventData);
             }
         } catch (Exception ex) {
