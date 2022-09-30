@@ -2,6 +2,7 @@ package com.communication.recognizedtmf.EventHandler;
 
 import com.azure.communication.callingserver.models.events.CallConnectedEvent;
 import com.azure.communication.callingserver.models.events.CallDisconnectedEvent;
+import com.azure.communication.callingserver.implementation.models.RecognizeCompleted;
 import com.azure.communication.callingserver.models.events.CallAutomationEventBase;
 import com.azure.communication.callingserver.models.events.PlayCompleted;
 import com.azure.communication.callingserver.models.events.PlayFailed;
@@ -18,7 +19,7 @@ public class EventDispatcher {
     }
 
     /// <summary>
-    /// Get instace of EventDispatcher
+    /// Get instances of EventDispatcher
     /// </summary>
     public static EventDispatcher getInstance() {
         if (instance == null) {
@@ -67,9 +68,9 @@ public class EventDispatcher {
             String callLegId = ((CallDisconnectedEvent) callEventBase).getCallConnectionId();
             return buildEventKey("CallDisconnected", callLegId);
         }
-        else if (callEventBase.getClass() == ToneReceivedEvent.class) {
-            String callLegId = ((ToneReceivedEvent) callEventBase).getCallConnectionId();
-            return buildEventKey(CallingServerEventType.TONE_RECEIVED_EVENT.toString(), callLegId);
+        else if (callEventBase.getClass() == RecognizeCompleted.class) {
+            String callLegId = ((RecognizeCompleted) callEventBase).getCallConnectionId();
+            return buildEventKey("RecognizeCompleted", callLegId);
         } 
         else if (callEventBase.getClass() == PlayCompleted.class) {
             String operationContext = ((PlayCompleted) callEventBase).getOperationContext();
@@ -91,9 +92,9 @@ public class EventDispatcher {
             if (cloudEvent.getType().equals("CallConnected")) {
                 return CallConnectedEvent.deserialize(eventData);
             } else if (cloudEvent.getType().equals("CallDisConnected")) {
-                return ToneReceivedEvent.deserialize(eventData);
+                return RecognizeCompleted.deserialize(eventData);
             } else if (cloudEvent.getType().equals("Microsoft.Communication.ToneReceived")) {
-                return ToneReceivedEvent.deserialize(eventData);
+                return RecognizeCompleted.deserialize(eventData);
             } else if (cloudEvent.getType().equals("PlayCompleted")) {
                 return PlayCompleted.deserialize(eventData);
             } else if (cloudEvent.getType().equals("PlayFailed")) {

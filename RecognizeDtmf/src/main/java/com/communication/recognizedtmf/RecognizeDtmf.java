@@ -1,7 +1,6 @@
 package com.communication.recognizedtmf;
 
 import com.azure.communication.callingserver.CallConnection;
-import com.azure.communication.callingserver.implementation.models.RecognizeCompleted;
 import com.azure.communication.callingserver.CallAutomationClientBuilder;
 import com.azure.communication.callingserver.CallAutomationAsyncClient;
 import com.azure.communication.callingserver.CallAutomationClient;
@@ -13,9 +12,11 @@ import com.azure.communication.callingserver.models.FileSource;
 import com.azure.communication.callingserver.models.PlayOptions;
 import com.azure.communication.callingserver.models.PlaySource;
 import com.azure.communication.callingserver.models.StopTones;
+import com.azure.communication.callingserver.implementation.models.RecognizeCompleted;
 import com.azure.communication.callingserver.models.events.CallConnectedEvent;
 import com.azure.communication.callingserver.models.events.CallDisconnectedEvent;
 import com.azure.communication.callingserver.models.events.PlayCompleted;
+import com.azure.communication.callingserver.models.events.PlayFailed;
 import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.CommunicationUserIdentifier;
 import com.azure.communication.common.PhoneNumberIdentifier;
@@ -139,9 +140,8 @@ public class RecognizeDtmf {
         toneReceivedCompleteTask = new CompletableFuture<>();
 
         NotificationCallback dtmfReceivedEvent = ((callEvent) -> {
-            RecognizeCompleted toneReceivedEvent ; //(RecognizeCompleted) callEvent
+            RecognizeCompleted toneReceivedEvent = (RecognizeCompleted) callEvent; //(RecognizeCompleted) callEvent
             List<String> toneInfo = toneReceivedEvent.getCollectTonesResult().getTones();
-
             Logger.logMessage(Logger.MessageType.INFORMATION, "Tone received -- > : " + toneInfo);
 
             if (!toneInfo.isEmpty() && toneInfo != null) {
@@ -193,7 +193,7 @@ public class RecognizeDtmf {
                 Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state running");
 
                 // listen to play audio events
-                registerToPlayAudioResultEvent(playAudioResponse.);
+                registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());
 
                 CompletableFuture<Boolean> maxWait = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -259,7 +259,7 @@ public class RecognizeDtmf {
                 Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state is running ");
 
                 // listen to play audio events
-                registerToPlayAudioResultEvent(response.getOperationContext());
+                registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());
 
                 CompletableFuture<Boolean> maxWait = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -297,13 +297,13 @@ public class RecognizeDtmf {
         Logger.logMessage(Logger.MessageType.INFORMATION, "hangupWithResponse -- > " + getResponse(response));
     }
 
-    private void registerToPlayAudioResultEvent(String operationContext) {
+    private void registerToPlayAudioResultEvent(String callConnectionId) {
         playAudioCompletedTask = new CompletableFuture<>();
         NotificationCallback playCompletedNotification = ((callEvent) -> {
             PlayCompleted playAudioResultEvent = (PlayCompleted) callEvent;
             Logger.logMessage(Logger.MessageType.INFORMATION, "Play audio status completed" );
 
-            EventDispatcher.getInstance().unsubscribe("PlayCompleted", operationContext);
+            EventDispatcher.getInstance().unsubscribe("PlayCompleted", callConnectionId);
             playAudioCompletedTask.complete(true);   
         });
 
@@ -313,8 +313,8 @@ public class RecognizeDtmf {
         });
 
         // Subscribe to event
-        EventDispatcher.getInstance().subscribe("PlayCompleted", operationContext, playCompletedNotification);
-        EventDispatcher.getInstance().subscribe("PlayFailed", operationContext, playFailedNotification);
+        EventDispatcher.getInstance().subscribe("PlayCompleted", callConnectionId, playCompletedNotification);
+        EventDispatcher.getInstance().subscribe("PlayFailed", callConnectionId, playFailedNotification);
     }
 
     public String getResponse(Response<?> response)
