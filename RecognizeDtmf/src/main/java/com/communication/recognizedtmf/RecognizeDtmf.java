@@ -1,26 +1,23 @@
 package com.communication.recognizedtmf;
 
-import com.azure.communication.callingserver.CallConnection;
-import com.azure.communication.callingserver.CallAutomationClientBuilder;
-import com.azure.communication.callingserver.CallAutomationAsyncClient;
-import com.azure.communication.callingserver.CallAutomationClient;
-import com.azure.communication.callingserver.models.CallConnectionState;
-import com.azure.communication.callingserver.models.CreateCallOptions;
-import com.azure.communication.callingserver.models.CreateCallResult;
-import com.azure.communication.callingserver.models.DtmfConfigurations;
-import com.azure.communication.callingserver.models.FileSource;
-import com.azure.communication.callingserver.models.PlayOptions;
-import com.azure.communication.callingserver.models.PlaySource;
-import com.azure.communication.callingserver.models.StopTones;
-import com.azure.communication.callingserver.implementation.models.RecognizeCompleted;
-import com.azure.communication.callingserver.models.events.CallConnectedEvent;
-import com.azure.communication.callingserver.models.events.CallDisconnectedEvent;
-import com.azure.communication.callingserver.models.events.PlayCompleted;
-import com.azure.communication.callingserver.models.events.PlayFailed;
+import com.azure.communication.callautomation.CallConnection;
+import com.azure.communication.callautomation.CallAutomationClientBuilder;
+import com.azure.communication.callautomation.CallAutomationClient;
+import com.azure.communication.callautomation.models.CallMediaRecognizeDtmfOptions;
+import com.azure.communication.callautomation.models.CallMediaRecognizeOptions;
+import com.azure.communication.callautomation.models.CreateCallOptions;
+import com.azure.communication.callautomation.models.CreateCallResult;
+import com.azure.communication.callautomation.models.FileSource;
+import com.azure.communication.callautomation.models.PlayOptions;
+import com.azure.communication.callautomation.models.PlaySource;
+import com.azure.communication.callautomation.models.DtmfTone;
+import com.azure.communication.callautomation.models.events.RecognizeCompleted;
+import com.azure.communication.callautomation.models.events.CallConnectedEvent;
+import com.azure.communication.callautomation.models.events.CallDisconnectedEvent;
+import com.azure.communication.callautomation.models.events.PlayCompletedEvent;
 import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.CommunicationUserIdentifier;
 import com.azure.communication.common.PhoneNumberIdentifier;
-import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 
 import com.azure.cosmos.implementation.changefeed.CancellationToken;
 import com.azure.cosmos.implementation.changefeed.CancellationTokenSource;
@@ -29,6 +26,7 @@ import com.communication.recognizedtmf.EventHandler.NotificationCallback;
 import com.azure.core.http.HttpHeader;
 import com.azure.core.http.rest.Response;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -38,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 public class RecognizeDtmf {
 
     private final CallConfiguration callConfiguration;
-    private final CallAutomationAsyncClient callingAutomationClient;
+    private final CallAutomationClient callingAutomationClient;
     private CallConnection callConnection = null;
     private CancellationTokenSource reportCancellationTokenSource;
     private CancellationToken reportCancellationToken;
@@ -46,12 +44,12 @@ public class RecognizeDtmf {
     private CompletableFuture<Boolean> playAudioCompletedTask;
     private CompletableFuture<Boolean> callTerminatedTask;
     private CompletableFuture<Boolean> toneReceivedCompleteTask;
-    private String toneInputValue = StopTones.ASTERISK.toString();
+    private DtmfTone toneInputValue = DtmfTone.ASTERISK;
 
     public RecognizeDtmf(CallConfiguration callConfiguration) {
         this.callConfiguration = callConfiguration;
         this.callingAutomationClient = new CallAutomationClientBuilder().
-        endpoint(this.callConfiguration.connectionString).buildAsyncClient();
+        endpoint(this.callConfiguration.connectionString).buildClient();
     }
 
     public void report(String targetPhoneNumber) {
@@ -62,7 +60,7 @@ public class RecognizeDtmf {
             createCallAsync(targetPhoneNumber);
             registerToDtmfResultEvent(callConnection.getCallProperties().getCallConnectionId());
 
-            playAudioAsync();
+            playAudioAsync(targetPhoneNumber);
             Boolean playAudioCompleted = playAudioCompletedTask.get();
 
             if (!playAudioCompleted) {
@@ -98,7 +96,7 @@ public class RecognizeDtmf {
             Logger.logMessage(Logger.MessageType.INFORMATION,"Performing CreateCall operation");
 
             Response<CreateCallResult> response = this.callingAutomationClient.
-            createCallWithResponse(createCallOption).block();
+            createCallWithResponse(createCallOption, null);
             CreateCallResult callResult = response.getValue();
             callConnection = callResult.getCallConnection(); 
 
@@ -140,8 +138,8 @@ public class RecognizeDtmf {
         toneReceivedCompleteTask = new CompletableFuture<>();
 
         NotificationCallback dtmfReceivedEvent = ((callEvent) -> {
-            RecognizeCompleted toneReceivedEvent = (RecognizeCompleted) callEvent; //(RecognizeCompleted) callEvent
-            List<String> toneInfo = toneReceivedEvent.getCollectTonesResult().getTones();
+            RecognizeCompleted toneReceivedEvent = (RecognizeCompleted) callEvent;
+            List<DtmfTone> toneInfo = toneReceivedEvent.getCollectTonesResult().getTones();
             Logger.logMessage(Logger.MessageType.INFORMATION, "Tone received -- > : " + toneInfo);
 
             if (!toneInfo.isEmpty() && toneInfo != null) {
@@ -168,7 +166,7 @@ public class RecognizeDtmf {
         this.callConnection.getCallMedia().cancelAllMediaOperations();
     }
 
-    private void playAudioAsync() {
+    private void playAudioAsync(String targetPhoneNumber) {
         if (reportCancellationToken.isCancellationRequested()) {
             Logger.logMessage(Logger.MessageType.INFORMATION, "Cancellation request, PlayAudio will not be performed");
             return;
@@ -177,7 +175,6 @@ public class RecognizeDtmf {
         try {
             // Preparing data for request
             String audioFileUri = this.callConfiguration.audioFileUrl + this.callConfiguration.audioFileName;
-            String appCallbackUri = this.callConfiguration.appCallbackUrl;
             PlayOptions playAudioOptions = new PlayOptions();
             
             playAudioOptions.setLoop(true);
@@ -194,7 +191,17 @@ public class RecognizeDtmf {
 
                 // listen to play audio events
                 registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());
+                
+                //Start recognizing Dtmf Tone
+                CallMediaRecognizeOptions callMediaRecognizeOptions = new CallMediaRecognizeDtmfOptions(new PhoneNumberIdentifier(targetPhoneNumber), 1)
+                .setInterToneTimeout(Duration.ofSeconds(5))
+                .setInterruptCallMediaOperation(false)
+                .setInterruptPrompt(false);
 
+                Response<Void> startRecognizeResponse = this.callConnection.getCallMedia().startRecognizingWithResponse(callMediaRecognizeOptions, null);
+                Logger.logMessage(Logger.MessageType.INFORMATION, "Start Recognizing response-- > " + getResponse(startRecognizeResponse));
+
+                //Wait for 30 secs for input
                 CompletableFuture<Boolean> maxWait = CompletableFuture.supplyAsync(() -> {
                     try {
                         TimeUnit.SECONDS.sleep(30);
@@ -230,15 +237,15 @@ public class RecognizeDtmf {
             // Preparing data for request
             var audioFileName = callConfiguration.InvalidAudioFileName;
 
-            if (toneInputValue == StopTones.ONE.toString())
+            if (toneInputValue == DtmfTone.ONE)
             {
                 audioFileName = callConfiguration.SalesAudioFileName;
             }
-            else if (toneInputValue == StopTones.TWO.toString())
+            else if (toneInputValue == DtmfTone.TWO)
             {
                 audioFileName = callConfiguration.MarketingAudioFileName;
             }
-            else if (toneInputValue == StopTones.THREE.toString())
+            else if (toneInputValue == DtmfTone.THREE)
             {
                 audioFileName = callConfiguration.CustomerCareAudioFileName;
             }
@@ -300,7 +307,7 @@ public class RecognizeDtmf {
     private void registerToPlayAudioResultEvent(String callConnectionId) {
         playAudioCompletedTask = new CompletableFuture<>();
         NotificationCallback playCompletedNotification = ((callEvent) -> {
-            PlayCompleted playAudioResultEvent = (PlayCompleted) callEvent;
+            PlayCompletedEvent playAudioResultEvent = (PlayCompletedEvent) callEvent;
             Logger.logMessage(Logger.MessageType.INFORMATION, "Play audio status completed" );
 
             EventDispatcher.getInstance().unsubscribe("PlayCompleted", callConnectionId);
@@ -308,7 +315,7 @@ public class RecognizeDtmf {
         });
 
         NotificationCallback playFailedNotification = ((callEvent) -> {
-            PlayCompleted playAudioResultEvent = (PlayCompleted) callEvent;
+            PlayCompletedEvent playAudioResultEvent = (PlayCompletedEvent) callEvent;
             playAudioCompletedTask.complete(false);
         });
 

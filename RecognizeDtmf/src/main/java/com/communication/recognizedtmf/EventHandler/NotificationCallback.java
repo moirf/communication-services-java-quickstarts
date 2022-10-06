@@ -1,6 +1,6 @@
 package com.communication.recognizedtmf.EventHandler;
 
-import com.azure.communication.callingserver.models.events.CallAutomationEventBase;
+import com.azure.communication.callautomation.models.events.CallAutomationEventBase;
 
 public interface NotificationCallback {
     void callback(CallAutomationEventBase callEvent);

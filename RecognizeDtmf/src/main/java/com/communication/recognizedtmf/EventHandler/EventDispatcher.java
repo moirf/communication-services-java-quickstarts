@@ -1,11 +1,11 @@
 package com.communication.recognizedtmf.EventHandler;
 
-import com.azure.communication.callingserver.models.events.CallConnectedEvent;
-import com.azure.communication.callingserver.models.events.CallDisconnectedEvent;
-import com.azure.communication.callingserver.implementation.models.RecognizeCompleted;
-import com.azure.communication.callingserver.models.events.CallAutomationEventBase;
-import com.azure.communication.callingserver.models.events.PlayCompleted;
-import com.azure.communication.callingserver.models.events.PlayFailed;
+import com.azure.communication.callautomation.models.events.CallConnectedEvent;
+import com.azure.communication.callautomation.models.events.CallDisconnectedEvent;
+import com.azure.communication.callautomation.models.events.RecognizeCompleted;
+import com.azure.communication.callautomation.models.events.CallAutomationEventBase;
+import com.azure.communication.callautomation.models.events.PlayCompletedEvent;
+import com.azure.communication.callautomation.models.events.PlayFailedEvent;
 import com.azure.core.models.CloudEvent;
 import com.azure.core.util.BinaryData;
 import java.util.*;
@@ -72,12 +72,12 @@ public class EventDispatcher {
             String callLegId = ((RecognizeCompleted) callEventBase).getCallConnectionId();
             return buildEventKey("RecognizeCompleted", callLegId);
         } 
-        else if (callEventBase.getClass() == PlayCompleted.class) {
-            String operationContext = ((PlayCompleted) callEventBase).getOperationContext();
+        else if (callEventBase.getClass() == PlayCompletedEvent.class) {
+            String operationContext = ((PlayCompletedEvent) callEventBase).getOperationContext();
             return buildEventKey("PlayCompleted", operationContext);
         }
-        else if (callEventBase.getClass() == PlayFailed.class) {
-            String operationContext = ((PlayFailed) callEventBase).getOperationContext();
+        else if (callEventBase.getClass() == PlayFailedEvent.class) {
+            String operationContext = ((PlayFailedEvent) callEventBase).getOperationContext();
             return buildEventKey("PlayFailed", operationContext);
         }
         return null;
@@ -96,9 +96,9 @@ public class EventDispatcher {
             } else if (cloudEvent.getType().equals("Microsoft.Communication.ToneReceived")) {
                 return RecognizeCompleted.deserialize(eventData);
             } else if (cloudEvent.getType().equals("PlayCompleted")) {
-                return PlayCompleted.deserialize(eventData);
+                return PlayCompletedEvent.deserialize(eventData);
             } else if (cloudEvent.getType().equals("PlayFailed")) {
-                return PlayCompleted.deserialize(eventData);
+                return PlayCompletedEvent.deserialize(eventData);
             }
         } catch (Exception ex) {
             System.out.println("Failed to parse request content Exception: " + ex.getMessage());
