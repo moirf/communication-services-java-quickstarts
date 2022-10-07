@@ -11,10 +11,11 @@ import com.azure.communication.callautomation.models.FileSource;
 import com.azure.communication.callautomation.models.PlayOptions;
 import com.azure.communication.callautomation.models.PlaySource;
 import com.azure.communication.callautomation.models.DtmfTone;
-import com.azure.communication.callautomation.models.events.RecognizeCompleted;
 import com.azure.communication.callautomation.models.events.CallConnectedEvent;
 import com.azure.communication.callautomation.models.events.CallDisconnectedEvent;
 import com.azure.communication.callautomation.models.events.PlayCompletedEvent;
+import com.azure.communication.callautomation.models.events.PlayFailedEvent;
+import com.azure.communication.callautomation.models.events.RecognizeCompleted;
 import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.CommunicationUserIdentifier;
 import com.azure.communication.common.PhoneNumberIdentifier;
@@ -48,8 +49,8 @@ public class RecognizeDtmf {
 
     public RecognizeDtmf(CallConfiguration callConfiguration) {
         this.callConfiguration = callConfiguration;
-        this.callingAutomationClient = new CallAutomationClientBuilder().
-        endpoint(this.callConfiguration.connectionString).buildClient();
+        this.callingAutomationClient = new CallAutomationClientBuilder().connectionString(this.callConfiguration.connectionString)
+        .buildClient();
     }
 
     public void report(String targetPhoneNumber) {
@@ -116,22 +117,20 @@ public class RecognizeDtmf {
         callConnectedTask = new CompletableFuture<>();
         // Set the callback method
         NotificationCallback callConnectedNotificaiton = ((callEvent) -> {
-            CallConnectedEvent callStateChanged = (CallConnectedEvent) callEvent;
             Logger.logMessage(Logger.MessageType.INFORMATION, "Call State successfully connected");
             callConnectedTask.complete(true);
-            EventDispatcher.getInstance().unsubscribe("CallConnected", callLegId);
+            EventDispatcher.getInstance().unsubscribe(CallConnectedEvent.class.getName(), callLegId);
         });
 
         NotificationCallback callDisconnectedNotificaiton = ((callEvent) -> {
-            CallDisconnectedEvent callStateChanged = (CallDisconnectedEvent) callEvent;
-            EventDispatcher.getInstance().unsubscribe("CallDisconnected", callLegId);
+            EventDispatcher.getInstance().unsubscribe(CallDisconnectedEvent.class.getName(), callLegId);
             reportCancellationTokenSource.cancel();
             callTerminatedTask.complete(true);
         });
 
         // Subscribe to the event
-        EventDispatcher.getInstance().subscribe("CallConnected", callLegId, callConnectedNotificaiton);
-        EventDispatcher.getInstance().subscribe("CallDisconnected", callLegId, callDisconnectedNotificaiton);
+        EventDispatcher.getInstance().subscribe(CallConnectedEvent.class.getName(), callLegId, callConnectedNotificaiton);
+        EventDispatcher.getInstance().subscribe(CallDisconnectedEvent.class.getName(), callLegId, callDisconnectedNotificaiton);
     }
 
     private void registerToDtmfResultEvent(String callLegId) {
@@ -148,12 +147,12 @@ public class RecognizeDtmf {
             } else {
                 toneReceivedCompleteTask.complete(false);
             }
-            EventDispatcher.getInstance().unsubscribe("RecognizeCompleted", callLegId);
+            EventDispatcher.getInstance().unsubscribe(RecognizeCompleted.class.getName(), callLegId);
             // cancel playing audio
             cancelMediaProcessing();
         });
         // Subscribe to event
-        EventDispatcher.getInstance().subscribe("RecognizeCompleted", callLegId, dtmfReceivedEvent);
+        EventDispatcher.getInstance().subscribe(RecognizeCompleted.class.getName(), callLegId, dtmfReceivedEvent);
     }
 
     private void cancelMediaProcessing() {
@@ -307,21 +306,21 @@ public class RecognizeDtmf {
     private void registerToPlayAudioResultEvent(String callConnectionId) {
         playAudioCompletedTask = new CompletableFuture<>();
         NotificationCallback playCompletedNotification = ((callEvent) -> {
-            PlayCompletedEvent playAudioResultEvent = (PlayCompletedEvent) callEvent;
             Logger.logMessage(Logger.MessageType.INFORMATION, "Play audio status completed" );
 
-            EventDispatcher.getInstance().unsubscribe("PlayCompleted", callConnectionId);
+            EventDispatcher.getInstance().unsubscribe(PlayCompletedEvent.class.getName(), callConnectionId);
             playAudioCompletedTask.complete(true);   
         });
 
         NotificationCallback playFailedNotification = ((callEvent) -> {
-            PlayCompletedEvent playAudioResultEvent = (PlayCompletedEvent) callEvent;
+            EventDispatcher.getInstance().unsubscribe(PlayFailedEvent.class.getName(), callConnectionId);
+            reportCancellationTokenSource.cancel();
             playAudioCompletedTask.complete(false);
         });
 
         // Subscribe to event
-        EventDispatcher.getInstance().subscribe("PlayCompleted", callConnectionId, playCompletedNotification);
-        EventDispatcher.getInstance().subscribe("PlayFailed", callConnectionId, playFailedNotification);
+        EventDispatcher.getInstance().subscribe(PlayCompletedEvent.class.getName(), callConnectionId, playCompletedNotification);
+        EventDispatcher.getInstance().subscribe(PlayFailedEvent.class.getName(), callConnectionId, playFailedNotification);
     }
 
     public String getResponse(Response<?> response)

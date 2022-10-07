@@ -1,13 +1,7 @@
 package com.communication.recognizedtmf.EventHandler;
 
-import com.azure.communication.callautomation.models.events.CallConnectedEvent;
-import com.azure.communication.callautomation.models.events.CallDisconnectedEvent;
-import com.azure.communication.callautomation.models.events.RecognizeCompleted;
+import com.azure.communication.callautomation.EventHandler;
 import com.azure.communication.callautomation.models.events.CallAutomationEventBase;
-import com.azure.communication.callautomation.models.events.PlayCompletedEvent;
-import com.azure.communication.callautomation.models.events.PlayFailedEvent;
-import com.azure.core.models.CloudEvent;
-import com.azure.core.util.BinaryData;
 import java.util.*;
 
 public class EventDispatcher {
@@ -47,63 +41,15 @@ public class EventDispatcher {
     }
 
     public void processNotification(String request) {
-        CallAutomationEventBase callEvent = this.extractEvent(request);
-        callEvent.getCallConnectionId();
+        CallAutomationEventBase callEvent = EventHandler.parseEvent(request);
         if (callEvent != null) {
             synchronized (this) {
-                final NotificationCallback notificationCallback = notificationCallbacks.get(getEventKey(callEvent));
+                final NotificationCallback notificationCallback = notificationCallbacks.
+                    get(buildEventKey(callEvent.getClass().getName(), callEvent.getCallConnectionId()));
                 if (notificationCallback != null) {
                     new Thread(() -> notificationCallback.callback(callEvent)).start();
                 }
             }
         }
     }
-
-    public String getEventKey(CallAutomationEventBase callEventBase) {
-        if (callEventBase.getClass() == CallConnectedEvent.class) {
-            String callLegId = ((CallConnectedEvent) callEventBase).getCallConnectionId();
-            return buildEventKey("CallConnected", callLegId);
-        }
-        else if (callEventBase.getClass() == CallDisconnectedEvent.class) {
-            String callLegId = ((CallDisconnectedEvent) callEventBase).getCallConnectionId();
-            return buildEventKey("CallDisconnected", callLegId);
-        }
-        else if (callEventBase.getClass() == RecognizeCompleted.class) {
-            String callLegId = ((RecognizeCompleted) callEventBase).getCallConnectionId();
-            return buildEventKey("RecognizeCompleted", callLegId);
-        } 
-        else if (callEventBase.getClass() == PlayCompletedEvent.class) {
-            String operationContext = ((PlayCompletedEvent) callEventBase).getOperationContext();
-            return buildEventKey("PlayCompleted", operationContext);
-        }
-        else if (callEventBase.getClass() == PlayFailedEvent.class) {
-            String operationContext = ((PlayFailedEvent) callEventBase).getOperationContext();
-            return buildEventKey("PlayFailed", operationContext);
-        }
-        return null;
-    }
-
-    public CallAutomationEventBase extractEvent(String content) {
-        try {
-            List<CloudEvent> cloudEvents = CloudEvent.fromString(content);
-            CloudEvent cloudEvent = cloudEvents.get(0);
-            BinaryData eventData = cloudEvent.getData();
-
-            if (cloudEvent.getType().equals("CallConnected")) {
-                return CallConnectedEvent.deserialize(eventData);
-            } else if (cloudEvent.getType().equals("CallDisConnected")) {
-                return RecognizeCompleted.deserialize(eventData);
-            } else if (cloudEvent.getType().equals("Microsoft.Communication.ToneReceived")) {
-                return RecognizeCompleted.deserialize(eventData);
-            } else if (cloudEvent.getType().equals("PlayCompleted")) {
-                return PlayCompletedEvent.deserialize(eventData);
-            } else if (cloudEvent.getType().equals("PlayFailed")) {
-                return PlayCompletedEvent.deserialize(eventData);
-            }
-        } catch (Exception ex) {
-            System.out.println("Failed to parse request content Exception: " + ex.getMessage());
-        }
-        return null;
-    }
-
 }
