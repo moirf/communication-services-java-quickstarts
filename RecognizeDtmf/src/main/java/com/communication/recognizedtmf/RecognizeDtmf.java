@@ -8,11 +8,13 @@ import com.azure.communication.callautomation.models.CallMediaRecognizeOptions;
 import com.azure.communication.callautomation.models.CreateCallOptions;
 import com.azure.communication.callautomation.models.CreateCallResult;
 import com.azure.communication.callautomation.models.FileSource;
+import com.azure.communication.callautomation.models.HangUpOptions;
 import com.azure.communication.callautomation.models.PlayOptions;
 import com.azure.communication.callautomation.models.PlaySource;
 import com.azure.communication.callautomation.models.DtmfTone;
 import com.azure.communication.callautomation.models.events.CallConnectedEvent;
 import com.azure.communication.callautomation.models.events.CallDisconnectedEvent;
+import com.azure.communication.callautomation.models.events.PlayCanceled;
 import com.azure.communication.callautomation.models.events.PlayCompletedEvent;
 import com.azure.communication.callautomation.models.events.PlayFailedEvent;
 import com.azure.communication.callautomation.models.events.RecognizeCompleted;
@@ -148,6 +150,7 @@ public class RecognizeDtmf {
                 toneReceivedCompleteTask.complete(false);
             }
             EventDispatcher.getInstance().unsubscribe(RecognizeCompleted.class.getName(), callLegId);
+            playAudioCompletedTask.complete(true);
             // cancel playing audio
             cancelMediaProcessing();
         });
@@ -173,49 +176,38 @@ public class RecognizeDtmf {
 
         try {
             // Preparing data for request
-            String audioFileUri = this.callConfiguration.audioFileUrl + this.callConfiguration.audioFileName;
-            PlayOptions playAudioOptions = new PlayOptions();
-            
-            playAudioOptions.setLoop(true);
-            playAudioOptions.setOperationContext(UUID.randomUUID().toString());
-
+            String audioFileUri = this.callConfiguration.audioFileUrl + this.callConfiguration.audioFileName;   
             PlaySource playSource = new FileSource().setUri(audioFileUri);
 
-            Logger.logMessage(Logger.MessageType.INFORMATION, "Performing PlayAudio operation");
-            Response<Void> playAudioResponse = this.callConnection.getCallMedia().playToAllWithResponse(playSource, playAudioOptions, null);
-            Logger.logMessage(Logger.MessageType.INFORMATION, "playAudioWithResponse -- > " + getResponse(playAudioResponse));
-
-            if (playAudioResponse.getStatusCode() == 202) {
-                Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state running");
-
-                // listen to play audio events
-                registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());
+            // listen to play audio events
+            registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());
                 
-                //Start recognizing Dtmf Tone
-                CallMediaRecognizeOptions callMediaRecognizeOptions = new CallMediaRecognizeDtmfOptions(new PhoneNumberIdentifier(targetPhoneNumber), 1)
-                .setInterToneTimeout(Duration.ofSeconds(5))
-                .setInterruptCallMediaOperation(false)
-                .setInterruptPrompt(false);
+            //Start recognizing Dtmf Tone
+            CallMediaRecognizeOptions callMediaRecognizeOptions = new CallMediaRecognizeDtmfOptions(new PhoneNumberIdentifier(targetPhoneNumber), 1)
+            .setInterToneTimeout(Duration.ofSeconds(5))
+            .setInterruptCallMediaOperation(true)
+            .setInitialSilenceTimeout(Duration.ofSeconds(30))
+            .setPlayPrompt(playSource)
+            .setInterruptPrompt(true);
 
-                Response<Void> startRecognizeResponse = this.callConnection.getCallMedia().startRecognizingWithResponse(callMediaRecognizeOptions, null);
-                Logger.logMessage(Logger.MessageType.INFORMATION, "Start Recognizing response-- > " + getResponse(startRecognizeResponse));
+            Response<Void> startRecognizeResponse = this.callConnection.getCallMedia().startRecognizingWithResponse(callMediaRecognizeOptions, null);
+            Logger.logMessage(Logger.MessageType.INFORMATION, "Start Recognizing response-- > " + getResponse(startRecognizeResponse));
 
-                //Wait for 30 secs for input
-                CompletableFuture<Boolean> maxWait = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        TimeUnit.SECONDS.sleep(30);
-                    } catch (InterruptedException ex) {
-                        Logger.logMessage(Logger.MessageType.ERROR, " -- > " + ex.getMessage());
-                    }
-                    return false;
-                });
-
-                CompletableFuture<Object> completedTask = CompletableFuture.anyOf(playAudioCompletedTask, maxWait);
-                if (completedTask.get() != playAudioCompletedTask.get()) {
-                    Logger.logMessage(Logger.MessageType.INFORMATION, "No response from user in 30 sec, initiating hangup");
-                    playAudioCompletedTask.complete(false);
-                    toneReceivedCompleteTask.complete(false);
+            //Wait for 30 secs for input
+            CompletableFuture<Boolean> maxWait = CompletableFuture.supplyAsync(() -> {
+                try {
+                    TimeUnit.SECONDS.sleep(30);
+                } catch (InterruptedException ex) {
+                    Logger.logMessage(Logger.MessageType.ERROR, " -- > " + ex.getMessage());
                 }
+                return false;
+            });
+
+            CompletableFuture<Object> completedTask = CompletableFuture.anyOf(playAudioCompletedTask, maxWait);
+            if (completedTask.get() != playAudioCompletedTask.get()) {
+                Logger.logMessage(Logger.MessageType.INFORMATION, "No response from user in 30 sec, initiating hangup");
+                playAudioCompletedTask.complete(false);
+                toneReceivedCompleteTask.complete(false);
             }
         } catch (Exception ex) {
             if (playAudioCompletedTask.isCancelled()) {
@@ -299,7 +291,9 @@ public class RecognizeDtmf {
         }
 
         Logger.logMessage(Logger.MessageType.INFORMATION, "Performing Hangup operation");
-        Response<Void> response = this.callConnection.hangUpWithResponse(true, null);
+
+        HangUpOptions hangUpOptions = new HangUpOptions(true);
+        Response<Void> response = this.callConnection.hangUpWithResponse(hangUpOptions, null);
         Logger.logMessage(Logger.MessageType.INFORMATION, "hangupWithResponse -- > " + getResponse(response));
     }
 
@@ -318,9 +312,17 @@ public class RecognizeDtmf {
             playAudioCompletedTask.complete(false);
         });
 
+        NotificationCallback playCanceledNotification = ((callEvent) -> {
+            Logger.logMessage(Logger.MessageType.INFORMATION, "Play audio status Canceled" );
+            EventDispatcher.getInstance().unsubscribe(PlayCanceled.class.getName(), callConnectionId);
+            reportCancellationTokenSource.cancel();
+            playAudioCompletedTask.complete(false);
+        });
+
         // Subscribe to event
         EventDispatcher.getInstance().subscribe(PlayCompletedEvent.class.getName(), callConnectionId, playCompletedNotification);
         EventDispatcher.getInstance().subscribe(PlayFailedEvent.class.getName(), callConnectionId, playFailedNotification);
+        EventDispatcher.getInstance().subscribe(PlayCanceled.class.getName(), callConnectionId, playCanceledNotification);
     }
 
     public String getResponse(Response<?> response)
