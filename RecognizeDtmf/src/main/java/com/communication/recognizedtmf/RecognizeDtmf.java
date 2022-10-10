@@ -18,6 +18,7 @@ import com.azure.communication.callautomation.models.events.PlayCanceled;
 import com.azure.communication.callautomation.models.events.PlayCompletedEvent;
 import com.azure.communication.callautomation.models.events.PlayFailedEvent;
 import com.azure.communication.callautomation.models.events.RecognizeCompleted;
+import com.azure.communication.callautomation.models.events.RecognizeFailed;
 import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.CommunicationUserIdentifier;
 import com.azure.communication.common.PhoneNumberIdentifier;
@@ -154,8 +155,16 @@ public class RecognizeDtmf {
             // cancel playing audio
             cancelMediaProcessing();
         });
+
+        NotificationCallback dtmfFailedEvent = ((callEvent) -> {
+            EventDispatcher.getInstance().unsubscribe(RecognizeFailed.class.getName(), callLegId);
+            toneReceivedCompleteTask.complete(false);
+            playAudioCompletedTask.complete(false);
+        });
+
         // Subscribe to event
         EventDispatcher.getInstance().subscribe(RecognizeCompleted.class.getName(), callLegId, dtmfReceivedEvent);
+        EventDispatcher.getInstance().subscribe(RecognizeFailed.class.getName(), callLegId, dtmfFailedEvent);
     }
 
     private void cancelMediaProcessing() {
