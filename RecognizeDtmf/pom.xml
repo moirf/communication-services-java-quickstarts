@@ -64,7 +64,7 @@
     <dependency>
       <groupId>com.azure</groupId>
       <artifactId>azure-communication-callautomation</artifactId>
-      <version>1.0.0-alpha.20221007.2</version>
+      <version>1.0.0-alpha.20221011.2</version>
     </dependency>
     <dependency>
       <groupId>com.microsoft.cognitiveservices.speech</groupId>

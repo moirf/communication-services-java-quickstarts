@@ -152,8 +152,6 @@ public class RecognizeDtmf {
             }
             EventDispatcher.getInstance().unsubscribe(RecognizeCompleted.class.getName(), callLegId);
             playAudioCompletedTask.complete(true);
-            // cancel playing audio
-            cancelMediaProcessing();
         });
 
         NotificationCallback dtmfFailedEvent = ((callEvent) -> {
@@ -165,16 +163,6 @@ public class RecognizeDtmf {
         // Subscribe to event
         EventDispatcher.getInstance().subscribe(RecognizeCompleted.class.getName(), callLegId, dtmfReceivedEvent);
         EventDispatcher.getInstance().subscribe(RecognizeFailed.class.getName(), callLegId, dtmfFailedEvent);
-    }
-
-    private void cancelMediaProcessing() {
-        if (reportCancellationToken.isCancellationRequested()) {
-            Logger.logMessage(Logger.MessageType.INFORMATION,"Cancellation request, CancelMediaProcessing will not be performed");
-            return;
-        }
-
-        Logger.logMessage(Logger.MessageType.INFORMATION, "Performing cancel media processing operation to stop playing audio");
-        this.callConnection.getCallMedia().cancelAllMediaOperations();
     }
 
     private void playAudioAsync(String targetPhoneNumber) {
@@ -266,23 +254,8 @@ public class RecognizeDtmf {
                 Logger.logMessage(Logger.MessageType.INFORMATION, "Play Audio state is running ");
 
                 // listen to play audio events
-                registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());
-
-                CompletableFuture<Boolean> maxWait = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        TimeUnit.SECONDS.sleep(30);
-                    } catch (InterruptedException ex) {
-                        Logger.logMessage(Logger.MessageType.ERROR, " -- > " + ex.getMessage());
-                    }
-                    return false;
-                });
-
-                CompletableFuture<Object> completedTask = CompletableFuture.anyOf(playAudioCompletedTask, maxWait);
-                if (completedTask.get() != playAudioCompletedTask.get()) {
-                    Logger.logMessage(Logger.MessageType.INFORMATION, "No response from user in 30 sec, initiating hangup");
-                    playAudioCompletedTask.complete(false);
-                    toneReceivedCompleteTask.complete(false);
-                }
+                registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());      
+                TimeUnit.SECONDS.sleep(5);
             }
         } catch (Exception ex) {
             if (playAudioCompletedTask.isCancelled()) {
