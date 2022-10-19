@@ -19,6 +19,7 @@ import com.azure.communication.callautomation.models.events.PlayCompletedEvent;
 import com.azure.communication.callautomation.models.events.PlayFailedEvent;
 import com.azure.communication.callautomation.models.events.RecognizeCompletedEvent;
 import com.azure.communication.callautomation.models.events.RecognizeFailedEvent;
+
 import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.CommunicationUserIdentifier;
 import com.azure.communication.common.PhoneNumberIdentifier;
@@ -50,6 +51,7 @@ public class RecognizeDtmf {
     private CompletableFuture<Boolean> toneReceivedCompleteTask;
     private DtmfTone toneInputValue = DtmfTone.ZERO;
     private int toneCount = 0;
+
 
     public RecognizeDtmf(CallConfiguration callConfiguration) {
         this.callConfiguration = callConfiguration;
@@ -188,7 +190,7 @@ public class RecognizeDtmf {
             .setInitialSilenceTimeout(Duration.ofSeconds(30))
             .setPlayPrompt(playSource)
             .setInterruptPrompt(true);
-            
+
             Response<Void> startRecognizeResponse = this.callConnection.getCallMedia().startRecognizingWithResponse(callMediaRecognizeOptions, null);
             Logger.logMessage(Logger.MessageType.INFORMATION, "Start Recognizing response-- > " + getResponse(startRecognizeResponse));
 
@@ -258,6 +260,7 @@ public class RecognizeDtmf {
                 // listen to play audio events
                 registerToPlayAudioResultEvent(this.callConnection.getCallProperties().getCallConnectionId());      
                 TimeUnit.SECONDS.sleep(5);
+
             }
         } catch (Exception ex) {
             if (playAudioCompletedTask.isCancelled()) {
@@ -273,6 +276,7 @@ public class RecognizeDtmf {
             Logger.logMessage(Logger.MessageType.INFORMATION, "Cancellation request, Hangup will not be performed");
             return;
         }
+
         Logger.logMessage(Logger.MessageType.INFORMATION, "Performing Hangup operation");
 
         HangUpOptions hangUpOptions = new HangUpOptions(true);
