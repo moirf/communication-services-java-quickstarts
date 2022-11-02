@@ -15,4 +15,11 @@ public class CallConfiguration {
         this.appCallbackUrl = appBaseUrl + "/api/IncomingCallMediaStreaming/callback?" + eventhandler.getSecretQuerystring();
         this.mediaStreamingTransportURI = mediaStreamingTransportURI;
     }
+
+    public static CallConfiguration initiateConfiguration(String appBaseUrl) {
+        ConfigurationManager configurationManager = ConfigurationManager.getInstance();
+        String connectionString = configurationManager.getAppSettings("Connectionstring");
+        String mediaStreamingTransportURI = configurationManager.getAppSettings("MediaStreamingTransportURI");
+        return new CallConfiguration(connectionString, appBaseUrl, mediaStreamingTransportURI);
+    }
 }
