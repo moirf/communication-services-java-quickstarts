@@ -80,7 +80,7 @@ public class IVRHandler {
                         String incomingCallContext = data.split("\"incomingCallContext\":\"")[1].split("\",\"")[0].trim();
                         Logger.logMessage(Logger.MessageType.INFORMATION, incomingCallContext);
 
-                        var callbackUri = configurationManager.getAppSettings("CallbackUriBase") + "?callerId="
+                        var callbackUri = configurationManager.getAppSettings("CallbackUriBase") + "/api/callback?callerId="
                                 + callerId;
                         AnswerCallOptions answerCallOptions = new AnswerCallOptions(incomingCallContext,
                                 callbackUri);
@@ -114,7 +114,7 @@ public class IVRHandler {
         if (callEvent instanceof CallConnected) {
             // Start recording
             ServerCallLocator serverCallLocator = new ServerCallLocator(
-                    callConnection.getCallProperties().getServerCallId());
+                    callingAutomationClient.getCallConnection(callEvent.getCallConnectionId()).getCallProperties().getServerCallId());
             StartRecordingOptions recordingOptions = new StartRecordingOptions(serverCallLocator);
             Response<RecordingStateResult> response = callingAutomationClient.getCallRecording()
                     .startRecordingWithResponse(recordingOptions, null);
@@ -153,7 +153,8 @@ public class IVRHandler {
                 targets.add(participant);
 
                 AddParticipantsOptions addParticipantsOptions = new AddParticipantsOptions(targets);
-                addParticipantsOptions.setSourceCallerId(new PhoneNumberIdentifier(callerId));
+                addParticipantsOptions.setSourceCallerId(
+                        new PhoneNumberIdentifier(configurationManager.getAppSettings("ACSAlternatePhoneNumber")));
                 addParticipantsOptions.setOperationContext(UUID.randomUUID().toString());
                 addParticipantsOptions.setInvitationTimeout(Duration.ofSeconds(30));
                 addParticipantsOptions.setRepeatabilityHeaders(null);
