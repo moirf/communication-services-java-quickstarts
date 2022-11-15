@@ -1,14 +1,12 @@
 package com.communication.IncomingCallMediaStreaming.Controllers;
 
 import com.communication.IncomingCallMediaStreaming.Logger;
-import com.azure.communication.callautomation.CallAutomationClientBuilder;
 import com.azure.core.util.BinaryData;
 import com.azure.messaging.eventgrid.EventGridEvent;
 import com.azure.messaging.eventgrid.SystemEventNames;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationEventData;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationResponse;
 import com.communication.IncomingCallMediaStreaming.CallConfiguration;
-import com.communication.IncomingCallMediaStreaming.ConfigurationManager;
 import com.communication.IncomingCallMediaStreaming.IncomingCallMediaStreaming;
 import com.communication.IncomingCallMediaStreaming.EventHandler.EventAuthHandler;
 import com.communication.IncomingCallMediaStreaming.EventHandler.EventDispatcher;
@@ -30,9 +28,7 @@ public class IncomingCallMediaStreamingController {
 	CallConfiguration callConfiguration;
 
 	IncomingCallMediaStreamingController(){
-		ConfigurationManager configurationManager = ConfigurationManager.getInstance();
-		String appBaseUrl = configurationManager.getAppSettings("AppCallBackUri");
-		callConfiguration = CallConfiguration.initiateConfiguration(appBaseUrl);
+		callConfiguration = CallConfiguration.initiateConfiguration();
 	}
 
 	@PostMapping(value = "/OnIncomingCall", consumes = "application/json", produces = "application/json")

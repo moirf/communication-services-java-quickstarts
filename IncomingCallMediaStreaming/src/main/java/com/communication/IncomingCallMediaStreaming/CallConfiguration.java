@@ -17,12 +17,13 @@ public class CallConfiguration {
         this.mediaStreamingTransportURI = mediaStreamingTransportURI;
     }
 
-    public static CallConfiguration initiateConfiguration(String appBaseUrl) {
+    public static CallConfiguration initiateConfiguration() {
         ConfigurationManager configurationManager = ConfigurationManager.getInstance();
         configurationManager.loadAppSettings();
         String connectionString = configurationManager.getAppSettings("Connectionstring");
         String acceptCallsFrom = configurationManager.getAppSettings("AcceptCallsFrom");
         String mediaStreamingTransportURI = configurationManager.getAppSettings("MediaStreamingTransportURI");
+        String appBaseUrl = configurationManager.getAppSettings("AppCallBackUri");
         return new CallConfiguration(connectionString, appBaseUrl, acceptCallsFrom, mediaStreamingTransportURI);
     }
 }
