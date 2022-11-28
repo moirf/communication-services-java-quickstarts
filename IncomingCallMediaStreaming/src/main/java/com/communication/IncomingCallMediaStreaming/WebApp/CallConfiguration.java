@@ -1,5 +1,5 @@
-package com.communication.IncomingCallMediaStreaming;
-import com.communication.IncomingCallMediaStreaming.EventHandler.EventAuthHandler;
+package com.communication.IncomingCallMediaStreaming.WebApp;
+import com.communication.IncomingCallMediaStreaming.WebApp.EventHandler.EventAuthHandler;
 
 public class CallConfiguration {
     public String connectionString;

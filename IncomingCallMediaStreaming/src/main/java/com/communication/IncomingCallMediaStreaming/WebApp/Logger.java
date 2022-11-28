@@ -1,4 +1,4 @@
-package com.communication.IncomingCallMediaStreaming;
+package com.communication.IncomingCallMediaStreaming.WebApp;
 
 public class Logger {
     //Caution: Logging should be removed/disabled if you want to use this sample in production to avoid exposing sensitive information

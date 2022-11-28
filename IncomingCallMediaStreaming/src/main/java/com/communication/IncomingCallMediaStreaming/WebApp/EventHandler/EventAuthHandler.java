@@ -1,6 +1,6 @@
-package com.communication.IncomingCallMediaStreaming.EventHandler;
+package com.communication.IncomingCallMediaStreaming.WebApp.EventHandler;
 
-import com.communication.IncomingCallMediaStreaming.ConfigurationManager;
+import com.communication.IncomingCallMediaStreaming.WebApp.ConfigurationManager;
 
 public class EventAuthHandler {
     private String secretValue;

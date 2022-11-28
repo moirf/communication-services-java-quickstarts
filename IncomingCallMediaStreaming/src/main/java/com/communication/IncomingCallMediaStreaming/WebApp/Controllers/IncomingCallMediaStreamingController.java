@@ -1,15 +1,15 @@
-package com.communication.IncomingCallMediaStreaming.Controllers;
+package com.communication.IncomingCallMediaStreaming.WebApp.Controllers;
 
-import com.communication.IncomingCallMediaStreaming.Logger;
+import com.communication.IncomingCallMediaStreaming.WebApp.Logger;
 import com.azure.core.util.BinaryData;
 import com.azure.messaging.eventgrid.EventGridEvent;
 import com.azure.messaging.eventgrid.SystemEventNames;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationEventData;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationResponse;
-import com.communication.IncomingCallMediaStreaming.CallConfiguration;
-import com.communication.IncomingCallMediaStreaming.IncomingCallMediaStreaming;
-import com.communication.IncomingCallMediaStreaming.EventHandler.EventAuthHandler;
-import com.communication.IncomingCallMediaStreaming.EventHandler.EventDispatcher;
+import com.communication.IncomingCallMediaStreaming.WebApp.CallConfiguration;
+import com.communication.IncomingCallMediaStreaming.WebApp.IncomingCallMediaStreaming;
+import com.communication.IncomingCallMediaStreaming.WebApp.EventHandler.EventAuthHandler;
+import com.communication.IncomingCallMediaStreaming.WebApp.EventHandler.EventDispatcher;
 
 import java.util.List;
 import com.google.gson.Gson;

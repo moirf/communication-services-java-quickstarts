@@ -1,4 +1,4 @@
-package com.communication.IncomingCallMediaStreaming;
+package com.communication.IncomingCallMediaStreaming.WebApp;
 
 import com.azure.communication.callautomation.CallAutomationClientBuilder;
 import com.azure.communication.callautomation.CallAutomationClient;
@@ -12,8 +12,8 @@ import com.azure.communication.callautomation.models.events.CallConnectedEvent;
 import com.azure.communication.callautomation.models.events.CallDisconnectedEvent;
 
 import com.azure.cosmos.implementation.changefeed.CancellationTokenSource;
-import com.communication.IncomingCallMediaStreaming.EventHandler.EventDispatcher;
-import com.communication.IncomingCallMediaStreaming.EventHandler.NotificationCallback;
+import com.communication.IncomingCallMediaStreaming.WebApp.EventHandler.EventDispatcher;
+import com.communication.IncomingCallMediaStreaming.WebApp.EventHandler.NotificationCallback;
 import com.azure.core.http.HttpHeader;
 import com.azure.core.http.rest.Response;
 

@@ -1,4 +1,4 @@
-package com.communication.IncomingCallMediaStreaming;
+package com.communication.IncomingCallMediaStreaming.WebApp;
 
 import java.io.File;
 import java.io.FileNotFoundException;

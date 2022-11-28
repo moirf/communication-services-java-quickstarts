@@ -1,4 +1,4 @@
-package com.communication.IncomingCallMediaStreaming.EventHandler;
+package com.communication.IncomingCallMediaStreaming.WebApp.EventHandler;
 
 import com.azure.communication.callautomation.EventHandler;
 import com.azure.communication.callautomation.models.events.CallAutomationEventBase;
