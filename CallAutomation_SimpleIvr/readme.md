@@ -10,11 +10,7 @@ products:
 
 # Call Automation - Simple IVR Solution
 
-This sample application shows how the Azure Communication Services - Call Automation SDK can be used to build IVR related solutions.  
-This sample makes an outbound call to a phone number performs dtmf recognition and the application plays next audio based on the key pressed by the callee.      
-This sample application configured for accepting tone-1  through tone-5 , If the callee pressed any other key than expected, an invalid audio tone will be played and then call will be disconnected.  
-
-The application is an app service application built on java.  
+The purpose of this sample application is to demonstrate the usage of the Azure Communication Services - Call Automation SDK for building solutions related to Interactive Voice Response (IVR). The application accepts an incoming call when an callee dialed in to either ACS Communication Identifier or ACS acquired phone number. Application prompt the Dual-Tone Multi-Frequency (DTMF) tones to select, and then plays the appropriate audio file based on the key pressed by the callee. The application has been configured to accept tone-1 through tone-5, and if any other key is pressed, the callee will hear an invalid tone and the call will be disconnected. This sample has been developed as an app service application using Java.
 
 # Design
 
@@ -39,7 +35,7 @@ The application is an app service application built on java.
 3. Navigate to CallAutomation_SimpleIvr, look for the file at /src/main/java/com/communication/simpleivr/SimpleIvr.java and update below configurations.
 	- connectionString: Replace <resource_connection_string> with Azure Communication Service resource's connection string.
 	- applicationPhoneNumber : Replace <phone_number_acquired_as_prerequisite> with Azure Communication Service acquired phone number.
-	- callbackBaseUri : Replace <public_url_generated_by_ngrok> with URI of the deployed app service or ngrok url.
+	- baseUri : Replace <public_url_generated_by_ngrok> with URI of the deployed app service or ngrok url.
 	- phoneNumberToAddToCall : Replace <phone_number_to_add_to_call> with target phone number to add as participant.
 
 ### Create Webhook for Microsoft.Communication.IncomingCall event and Microsoft.Communication.RecordingFileStatusUpdated event

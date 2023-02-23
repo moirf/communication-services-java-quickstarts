@@ -50,7 +50,7 @@ import org.springframework.web.bind.annotation.*;
 public class SimpleIvr {
     private CallAutomationAsyncClient client;
     private String connectionString = "<resource_connection_string>"; // noted from pre-requisite step
-    private String callbackBaseUri = "<public_url_generated_by_ngrok>";
+    private String baseUri = "<public_url_generated_by_ngrok>";
     private String agentAudio = "/audio/agent.wav";
     private String customercareAudio = "/audio/customercare.wav";
     private String invalidAudio = "/audio/invalid.wav";
@@ -98,7 +98,7 @@ public class SimpleIvr {
                                                                                        // prompt.
 
             // Call events of this call will be sent to an url with unique id.
-            String callbackUri = callbackBaseUri
+            String callbackUri = baseUri
                     + String.format("/api/calls/%s?callerId=%s", UUID.randomUUID(), callerId);
 
             AnswerCallResult answerCallResult = getCallAutomationAsyncClient()
@@ -121,19 +121,10 @@ public class SimpleIvr {
 
                 // Call was answered and is now established
                 String callConnectionId = event.getCallConnectionId();
-
-                // Start recording
-                ServerCallLocator serverCallLocator = new ServerCallLocator(getCallAutomationAsyncClient().getCallConnectionAsync(callConnectionId)
-                        .getCallProperties().block().getServerCallId());
-                StartRecordingOptions recordingOptions = new StartRecordingOptions(serverCallLocator);
-                Response<RecordingStateResult> response = getCallAutomationAsyncClient()
-                .getCallRecordingAsync().startRecordingWithResponse(recordingOptions).block();
-                logger.log(Level.INFO, "Start Recording with recording ID: " + response.getValue().getRecordingId());
-
                 CommunicationIdentifier target = CommunicationIdentifier.fromRawId(callerId);
                 
                 // Play audio then recognize 1-digit DTMF input with pound (#) stop tone
-                playSource = new FileSource().setUri(callbackBaseUri + mainmenuAudio);
+                playSource = new FileSource().setUri(baseUri + mainmenuAudio);
                 CallMediaRecognizeDtmfOptions recognizeOptions = new CallMediaRecognizeDtmfOptions(target, 1);
                 recognizeOptions.setInterToneTimeout(Duration.ofSeconds(10))
                         .setStopTones(new ArrayList<>(Arrays.asList(DtmfTone.POUND)))
@@ -146,6 +137,7 @@ public class SimpleIvr {
                         .getCallMediaAsync()
                         .startRecognizing(recognizeOptions)
                         .block();
+                        
             } else if (acsEvent instanceof RecognizeCompleted) {
                 RecognizeCompleted event = (RecognizeCompleted) acsEvent;
                 // This RecognizeCompleted correlates to the previous action as per the
@@ -154,14 +146,14 @@ public class SimpleIvr {
 
                     DtmfTone tone = event.getCollectTonesResult().getTones().get(0);
                     if (tone == DtmfTone.ONE) {
-                        playSource = new FileSource().setUri(callbackBaseUri + salesAudio);
+                        playSource = new FileSource().setUri(baseUri + salesAudio);
                     } else if (tone == DtmfTone.TWO) {
-                        playSource = new FileSource().setUri(callbackBaseUri + marketingAudio);
+                        playSource = new FileSource().setUri(baseUri + marketingAudio);
                     } else if (tone == DtmfTone.THREE) {
-                        playSource = new FileSource().setUri(callbackBaseUri + customercareAudio);
+                        playSource = new FileSource().setUri(baseUri + customercareAudio);
                     } 
                     else if (tone == DtmfTone.FOUR) {
-                        playSource = new FileSource().setUri(callbackBaseUri + agentAudio);
+                        playSource = new FileSource().setUri(baseUri + agentAudio);
 
                         CallConnectionAsync callConnectionAsync = getCallAutomationAsyncClient()
                                 .getCallConnectionAsync(event.getCallConnectionId());
@@ -180,7 +172,7 @@ public class SimpleIvr {
                         hangupAsync(event.getCallConnectionId());
                         break;
                     } else {
-                        playSource = new FileSource().setUri(callbackBaseUri + invalidAudio);
+                        playSource = new FileSource().setUri(baseUri + invalidAudio);
                     }
                     String callConnectionId = event.getCallConnectionId();
                     getCallAutomationAsyncClient().getCallConnectionAsync(callConnectionId)
@@ -189,10 +181,12 @@ public class SimpleIvr {
             } else if (acsEvent instanceof RecognizeFailed) {
                 RecognizeFailed event = (RecognizeFailed) acsEvent;
                 String callConnectionId = event.getCallConnectionId();
-                playSource = new FileSource().setUri(callbackBaseUri + invalidAudio);
+                playSource = new FileSource().setUri(baseUri + invalidAudio);
                 getCallAutomationAsyncClient().getCallConnectionAsync(callConnectionId)
                         .getCallMediaAsync().playToAllWithResponse(playSource, new PlayOptions()).block();
             } else if (acsEvent instanceof PlayCompleted){
+                hangupAsync(acsEvent.getCallConnectionId());
+            } else if (acsEvent instanceof PlayFailed) {
                 hangupAsync(acsEvent.getCallConnectionId());
             }
 
@@ -200,62 +194,6 @@ public class SimpleIvr {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-    @PostMapping(value = "/api/recording", consumes = "application/json", produces = "application/json")
-    public ResponseEntity<?> getRecordingFile(@RequestBody String requestBody) {
-
-        List<EventGridEvent> eventGridEvents = EventGridEvent.fromString(requestBody);
-        for (EventGridEvent eventGridEvent : eventGridEvents) {
-            if (eventGridEvent.getEventType().equals(SystemEventNames.EVENT_GRID_SUBSCRIPTION_VALIDATION)) {
-                try {
-
-                    SubscriptionValidationEventData subscriptionValidationEvent = eventGridEvent.getData()
-                            .toObject(SubscriptionValidationEventData.class);
-                    SubscriptionValidationResponse responseData = new SubscriptionValidationResponse();
-                    responseData.setValidationResponse(subscriptionValidationEvent.getValidationCode());
-
-                    return new ResponseEntity<>(responseData, HttpStatus.OK);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-                }
-            }
-            if (eventGridEvent.getEventType().equals(SystemEventNames.COMMUNICATION_RECORDING_FILE_STATUS_UPDATED)) {
-                try {
-                    AcsRecordingFileStatusUpdatedEventData event = eventGridEvent
-                            .getData()
-                            .toObject(AcsRecordingFileStatusUpdatedEventData.class);
-
-                    AcsRecordingChunkInfoProperties recordingChunk = event
-                            .getRecordingStorageInfo()
-                            .getRecordingChunks().get(0);
-
-                    String fileName = String.format("%s.mp4", recordingChunk.getDocumentId());
-                    Response<BinaryData> downloadResponse = getCallAutomationAsyncClient().getCallRecordingAsync()
-                        .downloadContentWithResponse(recordingChunk.getContentLocation(), null).block();
-                    
-                    FileOutputStream fos = new FileOutputStream(new File(fileName));
-                    fos.write(downloadResponse.getValue().toBytes());
-
-                    logger.log(Level.INFO,
-                            String.format("Download media response --> %s", getResponse(downloadResponse)));
-                    logger.log(Level.INFO,
-                            String.format("successfully downloaded recording file here: %s ", fileName));
-
-                    return new ResponseEntity<>(true, HttpStatus.OK);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    logger.log(Level.SEVERE, e.getMessage());
-                    return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-                }
-            } else {
-                return new ResponseEntity<>(eventGridEvent.getEventType() + " is not handled.",
-                        HttpStatus.BAD_REQUEST);
-            }
-        }
-
-        return new ResponseEntity<>("Event count is not available.", HttpStatus.BAD_REQUEST);
-    }
-    
     @RequestMapping("/audio/{fileName}")
 	public ResponseEntity<Object> loadFile(@PathVariable(value = "fileName", required = false) String fileName) {
 		String filePath = "src/main/java/com/communication/simpleivr/audio/" + fileName;
