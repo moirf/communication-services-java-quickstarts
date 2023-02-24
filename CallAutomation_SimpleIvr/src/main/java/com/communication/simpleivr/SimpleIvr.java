@@ -2,7 +2,6 @@ package com.communication.simpleivr;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,11 +28,7 @@ import com.azure.communication.common.CommunicationIdentifier;
 import com.azure.communication.common.PhoneNumberIdentifier;
 import com.azure.core.http.HttpHeader;
 import com.azure.core.http.rest.Response;
-import com.azure.core.util.BinaryData;
 import com.azure.messaging.eventgrid.EventGridEvent;
-import com.azure.messaging.eventgrid.SystemEventNames;
-import com.azure.messaging.eventgrid.systemevents.AcsRecordingChunkInfoProperties;
-import com.azure.messaging.eventgrid.systemevents.AcsRecordingFileStatusUpdatedEventData;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationEventData;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationResponse;
 import com.google.gson.Gson;
@@ -142,50 +137,66 @@ public class SimpleIvr {
                 RecognizeCompleted event = (RecognizeCompleted) acsEvent;
                 // This RecognizeCompleted correlates to the previous action as per the
                 // OperationContext value
+                var playAudioOptions = new PlayOptions().setLoop(false);
+
                 if (event.getOperationContext().equals("MainMenu")) {
 
                     DtmfTone tone = event.getCollectTonesResult().getTones().get(0);
                     if (tone == DtmfTone.ONE) {
+                        playAudioOptions.setOperationContext("SimpleIvr");
                         playSource = new FileSource().setUri(baseUri + salesAudio);
                     } else if (tone == DtmfTone.TWO) {
+                        playAudioOptions.setOperationContext("SimpleIvr");
                         playSource = new FileSource().setUri(baseUri + marketingAudio);
                     } else if (tone == DtmfTone.THREE) {
+                        playAudioOptions.setOperationContext("SimpleIvr");
                         playSource = new FileSource().setUri(baseUri + customercareAudio);
                     } 
                     else if (tone == DtmfTone.FOUR) {
+                        playAudioOptions.setOperationContext("SimpleIvrConnectAgent");
                         playSource = new FileSource().setUri(baseUri + agentAudio);
-
-                        CallConnectionAsync callConnectionAsync = getCallAutomationAsyncClient()
-                                .getCallConnectionAsync(event.getCallConnectionId());
-
-                        // Invite other participants to the call
-                        CommunicationIdentifier target = new PhoneNumberIdentifier(phoneNumberToAddToCall);
-                        List<CommunicationIdentifier> targets = new ArrayList<>(Arrays.asList(target));
-                        AddParticipantsOptions addParticipantsOptions = new AddParticipantsOptions(targets)
-                                .setSourceCallerId(new PhoneNumberIdentifier(applicationPhoneNumber));
-                        Response<AddParticipantsResult> addParticipantsResultResponse = callConnectionAsync
-                                .addParticipantsWithResponse(addParticipantsOptions).block();
-                        
-                        logger.log(Level.INFO, String.format("addParticipants Response %s", getResponse(addParticipantsResultResponse)));
 
                     } else if (tone == DtmfTone.FIVE) {
                         hangupAsync(event.getCallConnectionId());
                         break;
                     } else {
+                        playAudioOptions.setOperationContext("SimpleIvr");
                         playSource = new FileSource().setUri(baseUri + invalidAudio);
                     }
                     String callConnectionId = event.getCallConnectionId();
                     getCallAutomationAsyncClient().getCallConnectionAsync(callConnectionId)
-                        .getCallMediaAsync().playToAllWithResponse(playSource, new PlayOptions()).block();
+                        .getCallMediaAsync().playToAllWithResponse(playSource, playAudioOptions).block();
                 }
             } else if (acsEvent instanceof RecognizeFailed) {
                 RecognizeFailed event = (RecognizeFailed) acsEvent;
                 String callConnectionId = event.getCallConnectionId();
                 playSource = new FileSource().setUri(baseUri + invalidAudio);
                 getCallAutomationAsyncClient().getCallConnectionAsync(callConnectionId)
-                        .getCallMediaAsync().playToAllWithResponse(playSource, new PlayOptions()).block();
-            } else if (acsEvent instanceof PlayCompleted){
-                hangupAsync(acsEvent.getCallConnectionId());
+                        .getCallMediaAsync().playToAllWithResponse(playSource, new PlayOptions().setLoop(false)).block();
+            } 
+            else if (acsEvent instanceof PlayCompleted){
+                if(acsEvent.getOperationContext() == null || 
+                acsEvent.getOperationContext().equalsIgnoreCase("SimpleIvr"))
+                {
+                    hangupAsync(acsEvent.getCallConnectionId());
+                }
+                else if(acsEvent.getOperationContext().equalsIgnoreCase("SimpleIvrConnectAgent"))
+                {
+                    String callConnectionId = acsEvent.getCallConnectionId();
+                    CallConnectionAsync callConnectionAsync = getCallAutomationAsyncClient()
+                                .getCallConnectionAsync(callConnectionId);
+
+                    // Invite other participants to the call
+                    CommunicationIdentifier target = new PhoneNumberIdentifier(phoneNumberToAddToCall);
+                    List<CommunicationIdentifier> targets = new ArrayList<>(Arrays.asList(target));
+                    AddParticipantsOptions addParticipantsOptions = new AddParticipantsOptions(targets)
+                            .setSourceCallerId(new PhoneNumberIdentifier(applicationPhoneNumber));
+                    Response<AddParticipantsResult> addParticipantsResultResponse = callConnectionAsync
+                            .addParticipantsWithResponse(addParticipantsOptions).block();
+                    
+                    logger.log(Level.INFO, String.format("addParticipants Response %s", getResponse(addParticipantsResultResponse)));
+                }
+                
             } else if (acsEvent instanceof PlayFailed) {
                 hangupAsync(acsEvent.getCallConnectionId());
             }
@@ -193,7 +204,7 @@ public class SimpleIvr {
         }
         return new ResponseEntity<>(HttpStatus.OK);
     }
-
+    
     @RequestMapping("/audio/{fileName}")
 	public ResponseEntity<Object> loadFile(@PathVariable(value = "fileName", required = false) String fileName) {
 		String filePath = "src/main/java/com/communication/simpleivr/audio/" + fileName;
