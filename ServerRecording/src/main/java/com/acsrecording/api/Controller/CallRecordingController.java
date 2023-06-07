@@ -9,6 +9,8 @@ import com.acsrecording.api.Models.FileDownloadType;
 import com.acsrecording.api.Models.FileFormat;
 import com.acsrecording.api.Models.Mapper;
 import com.azure.communication.callautomation.CallAutomationClientBuilder ;
+import com.azure.communication.callautomation.models.CallInvite;
+import com.azure.communication.callautomation.models.CreateCallOptions;
 import com.azure.communication.callautomation.models.RecordingChannel;
 import com.azure.communication.callautomation.models.RecordingContent;
 import com.azure.communication.callautomation.models.RecordingFormat;
@@ -17,9 +19,12 @@ import com.azure.communication.callautomation.models.ServerCallLocator;
 import com.azure.core.http.HttpHeader;
 import com.azure.communication.callautomation.models.RecordingStateResult;
 import com.azure.communication.callautomation.models.StartRecordingOptions;
+import com.azure.communication.common.PhoneNumberIdentifier;
 import com.azure.core.http.rest.Response;
 import com.azure.core.util.BinaryData;
+import com.azure.core.util.Context;
 import com.azure.cosmos.implementation.Strings;
+import com.azure.cosmos.implementation.directconnectivity.Uri;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
@@ -31,6 +36,7 @@ import com.azure.messaging.eventgrid.systemevents.AcsRecordingFileStatusUpdatedE
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationEventData;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationResponse;
 
+import org.springframework.boot.autoconfigure.web.servlet.WebMvcProperties.Async;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,7 +56,9 @@ import java.util.logging.Logger;
 public class CallRecordingController  {
     Map<String,String> recordingDataMap;
     String container;
+    String ACSAcquiredPhoneNumber;
     String blobStorageConnectionString;
+    String BaseUri;
     Logger logger;
     String recordingFileFormat;
     private final com.azure.communication.callautomation.CallAutomationClient callAutomationClient;
@@ -58,14 +66,34 @@ public class CallRecordingController  {
     CallRecordingController() {
         ConfigurationManager configurationManager = ConfigurationManager.getInstance();
         String connectionString = configurationManager.getAppSettings("Connectionstring");
+        ACSAcquiredPhoneNumber= configurationManager.getAppSettings("ACSAcquiredPhoneNumber");
         container = configurationManager.getAppSettings("ContainerName");
         blobStorageConnectionString = configurationManager.getAppSettings("BlobStorageConnectionString");
+        BaseUri = configurationManager.getAppSettings("BaseUri");
 
         callAutomationClient  = new CallAutomationClientBuilder().connectionString(connectionString).buildClient();
         logger =  Logger.getLogger(CallRecordingController.class.getName());
         recordingDataMap = new HashMap<>();
     }
 
+    @GetMapping("/OutboundCall")
+    public String OutboundCall(String targetPhoneNumber) {
+        try {
+            var callerId = new PhoneNumberIdentifier(ACSAcquiredPhoneNumber);
+            var target = new PhoneNumberIdentifier(targetPhoneNumber);
+            var callInvite = new CallInvite(target, callerId);
+            var createCallOption = new CreateCallOptions(callInvite, BaseUri + "/api/callbacks");           
+         var response = this.callAutomationClient.createCallWithResponse(createCallOption,null);
+         var _callConnectionId = response.getValue().toString();
+         return _callConnectionId;
+
+        }
+        catch (Exception e) {
+        e.printStackTrace();
+        return null;
+        }
+
+    }
     @GetMapping("/startRecording")
     public RecordingStateResult startRecording(String serverCallId) {
         ServerCallLocator serverCallLocator;
@@ -75,17 +103,17 @@ public class CallRecordingController  {
             StartRecordingOptions recordingOptions = new StartRecordingOptions(serverCallLocator);
             /*
              * Usage of StartRecordingOptions
-             * 
+             *
              * RecordingContent is used to set recording in specific format AUDIO/AUDIO_VIDEO.
              * RecordingChannel is used to set the channel type MIXED/UNMIXED.
              * RecordingFormat is used to set the format of the recording MP4/MP3/WAV.
-             * 
+             *
              * StartRecordingOptions recordingOptions = new StartRecordingOptions();
              * recordingOptions.setRecordingContent(RecordingContent.AUDIO_VIDEO);
              * recordingOptions.setRecordingChannel(RecordingChannel.MIXED);
              * recordingOptions.setRecordingFormat(RecordingFormat.MP4);
              */
-            Response<RecordingStateResult> response = this.callAutomationClient.getCallRecording().startRecordingWithResponse(recordingOptions, null);
+            Response<RecordingStateResult> response = this.callAutomationClient.getCallRecording().startWithResponse(recordingOptions, null);
             var output = response.getValue();
 
             logger.log(Level.INFO, "Start Recording response --> " + getResponse(response) + "\n recording ID: " + response.getValue().getRecordingId());
@@ -128,7 +156,7 @@ public class CallRecordingController  {
                             recordingOptions.getRecordingFormat().toString()));
 
             Response<RecordingStateResult> response = this.callAutomationClient.getCallRecording()
-                    .startRecordingWithResponse(recordingOptions, null);
+                    .startWithResponse(recordingOptions, null);
             var output = response.getValue();
 
             logger.log(Level.INFO, "Start Recording response --> " + getResponse(response) + "\n recording ID: "
@@ -142,7 +170,7 @@ public class CallRecordingController  {
         } catch (Exception e) {
             e.printStackTrace();
             return null;
-        } 
+        }
     }
 
     @GetMapping("/pauseRecording")
@@ -160,7 +188,7 @@ public class CallRecordingController  {
                 }
             }
 
-            Response<Void> response = this.callAutomationClient.getCallRecording().pauseRecordingWithResponse(recordingId, null);
+            Response<Void> response = this.callAutomationClient.getCallRecording().pauseWithResponse(recordingId, null);
             logger.log(Level.INFO, "Pause Recording response --> " + getResponse(response));
         }
     }
@@ -180,7 +208,7 @@ public class CallRecordingController  {
                 }
             }
 
-            Response<Void> response = this.callAutomationClient.getCallRecording().resumeRecordingWithResponse(recordingId, null);
+            Response<Void> response = this.callAutomationClient.getCallRecording().resumeWithResponse(recordingId, null);
             logger.log(Level.INFO, "Resume Recording response --> " + getResponse(response));
         }
     }
@@ -200,7 +228,7 @@ public class CallRecordingController  {
                 }
             }
 
-            Response<Void> response = this.callAutomationClient.getCallRecording().stopRecordingWithResponse(recordingId, null);
+            Response<Void> response = this.callAutomationClient.getCallRecording().stopWithResponse(recordingId, null);
             logger.log(Level.INFO, "Stop Recording response --> " + getResponse(response));
 
             recordingDataMap.remove(serverCallId);
@@ -222,9 +250,9 @@ public class CallRecordingController  {
                 }
             }
 
-            RecordingStateResult recordingStateResult = this.callAutomationClient.getCallRecording().getRecordingState(recordingId);
+            RecordingStateResult recordingStateResult = this.callAutomationClient.getCallRecording().getState(recordingId);
             logger.log(Level.INFO, "Recording State --> " + recordingStateResult.getRecordingState().toString());
-            
+
             return recordingStateResult.getRecordingState();
         }
         catch (Exception e) {
@@ -235,7 +263,7 @@ public class CallRecordingController  {
 
     @PostMapping(value = "/getRecordingFile", consumes = "application/json", produces = "application/json")
     public ResponseEntity<?> getRecordingFile (@RequestBody String eventGridEventJsonData){
-        
+
         logger.log(Level.INFO,  "Entered getRecordingFile API");
 
         List<EventGridEvent> eventGridEvents = EventGridEvent.fromString(eventGridEventJsonData);
@@ -270,7 +298,7 @@ public class CallRecordingController  {
                                                     .getRecordingChunks().get(0);
 
                     logger.log(Level.INFO, "Processing metadata file --> \n");
-                    
+
                     processFile(
                         recordingChunk.getMetadataLocation(),
                         recordingChunk.getDocumentId(),
@@ -279,7 +307,7 @@ public class CallRecordingController  {
                     );
 
                     logger.log(Level.INFO, "Processing recording file --> \n");
-                    
+
                     processFile(
                         recordingChunk.getContentLocation(),
                         recordingChunk.getDocumentId(),
@@ -311,21 +339,19 @@ public class CallRecordingController  {
         String filePath = String.format(".\\%s", fileName);
         Path path = Paths.get(filePath);
         logger.log(Level.INFO, String.format("Local file Path url -- > %s", filePath));
-
-        var downloadResponse = callAutomationClient.getCallRecording().downloadToWithResponse(url, path, null, null);
-        logger.log(Level.INFO, String.format("Download media response --> %s", getResponse(downloadResponse)));
-        logger.log(Level.INFO, String.format("Download media request --> %s", getRequestData(downloadResponse)));
+        this.callAutomationClient.getCallRecording().downloadTo(url,path,null,null);
+        //callAutomationClient.getCallRecording().downloadTo(url,path,null,null);
+       // logger.log(Level.INFO, String.format("Download media response --> %s", getResponse(downloadResponse)));
+       // logger.log(Level.INFO, String.format("Download media request --> %s", getRequestData(downloadResponse)));
 
         File file = new File(filePath);
-
-        if (Strings.areEqualIgnoreCase(downloadType, FileDownloadType.getMetadata()) && file.exists())
-        {   
-            BinaryData eventData = BinaryData.fromFile(path); 
-            Root root = eventData.toObject(Root.class);
-            recordingFileFormat = root.getRecordingInfo().getFormat();
-
-            logger.log(Level.INFO, "Recording File Format is -- > %s", recordingFileFormat);
-        }
+        // if (Strings.areEqualIgnoreCase (downloadType , FileDownloadType.getMetadata()) && file.exists())
+        // {
+        //     BinaryData eventData = BinaryData.fromFile(path);
+        //     Root root = eventData.toObject(Root.class);
+        //     recordingFileFormat = root.getRecordingInfo().getFormat();
+        //     logger.log(Level.INFO, "Recording File Format is -- > %s", recordingFileFormat);
+        // }
 
         logger.log(Level.INFO, String.format("Uploading %s file to blob -- >", downloadType));
         uploadFileToStorage(fileName, filePath);

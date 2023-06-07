@@ -50,12 +50,12 @@
 		<dependency>
 			<groupId>com.azure</groupId>
 			<artifactId>azure-communication-callautomation</artifactId>
-			<version>1.0.0-beta.1</version>
-		</dependency>
+			<version>1.0.0-alpha.20230526.3</version>
+		</dependency>		
 		<dependency>
 			<groupId>com.azure</groupId>
 			<artifactId>azure-core</artifactId>
-			<version>1.31.0</version>
+			<version>1.39.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.microsoft.cognitiveservices.speech</groupId>
@@ -75,11 +75,23 @@
 	</dependencies>
 	<repositories>
 		<repository>
+			<id>azure-sdk-for-java</id>
+			<url>https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-java/maven/v1</url>
+				<releases>
+					<enabled>true</enabled>
+				</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+	</repository>
+	</repositories>
+	<!-- <repositories>
+		<repository>
 			<id>maven-cognitiveservices-speech</id>
 			<name>communication-callingserver-sdk</name>
 			<url>https://csspeechstorage.blob.core.windows.net/maven/</url>
 		</repository>
-	</repositories>
+	</repositories> -->
 	<build>
 		<pluginManagement>
 			<plugins>
