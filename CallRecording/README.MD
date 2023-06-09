@@ -25,21 +25,27 @@ It's a Java web application powered by Spring Boot to connect this application w
 - [Create container registry](https://learn.microsoft.com/en-us/azure/developer/java/spring-framework/deploy-spring-boot-java-app-on-linux#create-an-azure-container-registry-to-use-as-a-private-docker-registry)
 - [Create a webhook](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/voice-video-calling/download-recording-file-sample) and subscribe to the recording events.
 
-
 ## Code structure
 
 - ./src/main/java/com/acsrecording/api/Controller : Server app core logic to make Api calls that connect with the Azure Communication Services Web Calling SDK
 - ./pom.xml : XML file which contains project and package configurations
 - ./src/main/resources/config.properties : config file which contains user level configurations
 
-## Before running the sample for the first time
-1. Get the `Connection String` from the Azure portal. For more information on connection strings, see [Create an Azure Communication Resources](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/create-communication-resource).
-2. Once you get the config keys, add the keys to the **resources/config.properties** file found under the ./src/main/resources folder.
-	- Input your ACS connection string in the variable: `ACSConnectionString`
-	- Input your blob storage connection string in the variable: `BlobStorageConnectionString`
-	- Input blob container name for recorded media in the variable `ContainerName`
+## Clone the code local and update appsettings
 
-## Locally deploying the sample app
+1. Open an instance of PowerShell, Windows Terminal, Command Prompt or equivalent and navigate to the directory that you'd like to clone the sample to.
+2. Run `git clone https://github.com/Azure-Samples/communication-services-java-quickstarts`
+3. Once you get the code on local machine, navigate to **CallRecording//src/main/resources/config.properties** file found under the CallRecording folder.
+4. Update the values for below.
+
+	| Key | Value | Description |
+	| -------- | -------- | -------- |
+	| `Connectionstring`    | \<ACS Connection String>   | Input your ACS connection string in the variable   |
+	| `ACSAcquiredPhoneNumber`    | \<ACS Acquired Number>   | Phone number associated with the Azure Communication Service resource   |
+	| `BaseUri`    | \<dev tunnel url>   | Base url of the app, don't add `/` at end. For getting the dev tunnel url, run the app once.   |
+	| `targetPhoneNumber`    | \<target Phone Number>   | Target Phone Number   |
+
+## Locally run the sample app
 
 1. Build java code.
 
@@ -47,13 +53,17 @@ It's a Java web application powered by Spring Boot to connect this application w
 	mvn clean install  
 	```
 
-1. Run app locally.
+2. Run app locally.
 
 	```bash
 	mvn spring-boot:run
 	```
 
-1. Use [Postman](https://www.postman.com/) or any debugging tool to test the recording APIs
+3. Use [Postman](https://www.postman.com/) or any debugging tool to test the recording APIs
+
+	- Start a OutboundCall :
+
+	http://localhost:8080/OutboundCall
 
 	- Start a recording :
 
@@ -61,25 +71,32 @@ It's a Java web application powered by Spring Boot to connect this application w
 
 	- Stop a recording :
 
-	http://localhost:8080/stopRecording?serverCallId=XXXX
+	http://localhost:8080/stopRecording?recordingId=XXXX
 
-	To get the `serverCallId`, you first need to build a client application. Using the client application initiate a call. Once the call is connected use the getServerCallId method to get the server call id.
+## Create Webhook for Microsoft.Communication.RecordingFileStatus event
 
-	```JavaScript
-	callAgent.on('callsUpdated', (e: { added: Call[]; removed: Call[] }): void => {
-	    e.added.forEach((addedCall) => {
-	        addedCall.on('stateChanged', (): void => {
-	            if (addedCall.state === 'Connected') {
-	                addedCall.info.getServerCallId().then(result => {
-	                    dispatch(setServerCallId(result));
-	                }).catch(err => {
-	                    console.log(err);
-	                });
-	            }
-	        });
-	    });
-	});
-	```
+Call Recording enables you to record multiple calling scenarios available in Azure Communication Services by providing you with a set of APIs to start, stop, pause and resume recording. To learn more about it, see [this guide](https://learn.microsoft.com/en-us/azure/communication-services/concepts/voice-video-calling/call-recording). 
+1. Navigate to your Communication Service resource on Azure portal and select `Events` from the left side blade.
+2. Click `+ Event Subscription` to create a new subscription, provide `Name` field value. 
+3. Under Topic details, choose a System Topic or create new, no changes required if its already have topic name.  
+4. Under `Event Types` Filter for `Recording File Status Updated(Preview)` event. 
+5. Choose `Endpoint Type` as `Web Hook` and provide the public url generated by Dev Tunnels. It would look like `https://21pdf6lm-44348.usw2.devtunnels.ms/recordingFileStatus`.  
+6. Click `Create` to complete the event grid subscription. The subscription is ready when the provisioning status is marked as succeeded.  
+**Note:** Application should be running to able to create the `Web Hook` successfully.
+
+# Step by step guid for testing recording APIs via postman.
+
+Once App is running locally,
+1. Import the postman collection with RecordingAPIs.postman_collection.json file. For details, see [Importing and exporting data](https://learning.postman.com/docs/getting-started/importing-and-exporting-data/)
+2. Replace imported collection Request urls with, your CallbackUri.
+3. Start a call invoke outboundCall. 
+	- Accept the call on Target PSTN Phone number, Keep call running.
+4. Send Request to startRecording.
+	- Recording would be started.
+5. (Optional) pauseRecording and then resumeRecording,getRecordingState.
+6. Send Request for stopRecording.
+7. Send Request for downloadRecording from server, only last recorded file will be downloaded.
+8. Send Request for deleteRecording at server.
 
  For complete details on how to build a client application using ACS calling SDK, refer to https://learn.microsoft.com/en-us/azure/communication-services/samples/calling-hero-sample?pivots=platform-web
 
