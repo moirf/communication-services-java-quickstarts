@@ -9,11 +9,11 @@
 		<version>2.5.1</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-  <groupId>com.communication.outboundcallreminder</groupId>
-  <artifactId>outboundcallreminder</artifactId>
+  <groupId>com.acscalling</groupId>
+  <artifactId>recordingapi</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>outboundcallreminder</name>
+  <name>api</name>
   <!-- FIXME change it to the project's website -->
   <url>http://www.example.com</url>
 
