@@ -1,4 +1,4 @@
-package com.acsrecording.api.Controller;
+package com.communication.callrecording.Controller;
 
 import com.azure.communication.callautomation.CallAutomationClientBuilder;
 import com.azure.communication.callautomation.CallAutomationEventParser;
@@ -23,7 +23,7 @@ import com.azure.messaging.eventgrid.systemevents.AcsRecordingChunkInfoPropertie
 import com.azure.messaging.eventgrid.systemevents.AcsRecordingFileStatusUpdatedEventData;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationEventData;
 import com.azure.messaging.eventgrid.systemevents.SubscriptionValidationResponse;
-import com.acsrecording.api.ConfigurationManager;
+import com.communication.callrecording.ConfigurationManager;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

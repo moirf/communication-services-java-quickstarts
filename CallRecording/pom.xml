@@ -9,11 +9,11 @@
 		<version>2.5.1</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-  <groupId>com.acscalling</groupId>
-  <artifactId>recordingapi</artifactId>
+  <groupId>com.communication.callautomation</groupId>
+  <artifactId>callrecording</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>api</name>
+  <name>callrecording</name>
   <!-- FIXME change it to the project's website -->
   <url>http://www.example.com</url>
 
@@ -140,7 +140,7 @@
 					</execution>
 				</executions>
 				<configuration>
-					<mainClass>com.acsrecording.api.ApiApplication</mainClass>
+					<mainClass>com.communication.callrecording.ApiApplication</mainClass>
 				</configuration>
 			</plugin>
 			<plugin>
